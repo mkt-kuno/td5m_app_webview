@@ -4,7 +4,7 @@
 		{
 			"label": "PyInstaller Build",
 			"type": "shell",
-			"command": "uv run pyinstaller TDS530Logger.spec",
+			"command": "uvx pyinstaller TDS530Logger.spec",
 			"problemMatcher": [],
 			"group": {
 				"kind": "build",

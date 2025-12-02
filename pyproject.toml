@@ -5,7 +5,6 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = "==3.11.13"
 dependencies = [
-    "pyinstaller>=6.17.0",
     "pywebview>=3.2; sys_platform != 'linux'",
     "pywebview[qt]>=3.2; sys_platform == 'linux'",
 ]
