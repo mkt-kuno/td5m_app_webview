@@ -197,7 +197,7 @@ class TDS530Api:
     def select_save_file(self):
         """Open file dialog to select save location - called from JavaScript."""
         result = webview.windows[0].create_file_dialog(
-            webview.SAVE_DIALOG,
+            webview.FileDialog.SAVE,
             save_filename='tds530_log.tsv',
             file_types=('TSV files (*.tsv)',)
         )
@@ -215,8 +215,9 @@ class TDS530Api:
             return {"filepath": filepath}
         return {"cancelled": True}
 
-
-def main():
+if __name__ == "__main__":
+    HOST = "192.168.100.100"
+    PORT = 4242
     HOST = "192.168.100.100"
     PORT = 4242
     
@@ -225,21 +226,15 @@ def main():
     
     # Create data collector
     collector = TDS530DataCollector(HOST, PORT, recv_callback=api.update_data)
-    
-    # Get the path to the HTML template
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    html_path = os.path.join(base_dir, "templates", "index.html")
-    
-    # Create webview window
+
     window = webview.create_window(
-        'TDS530 TCP Logger',
-        html_path,
+        'TrapDoor 5-Axis Motor Logger',
+        'www/index.html',
         js_api=api,
         width=1200,
-        height=800
-    )
-    
-    # Start data collector when window is ready
+        height=800)
+
+        # Start data collector when window is ready
     def on_loaded():
         collector.start()
     
@@ -248,10 +243,5 @@ def main():
     
     window.events.loaded += on_loaded
     window.events.closed += on_closed
-    
-    # Start the GUI
+
     webview.start()
-
-
-if __name__ == "__main__":
-    main()
