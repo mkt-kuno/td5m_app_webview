@@ -202,7 +202,14 @@ class TDS530Api:
             file_types=('TSV files (*.tsv)',)
         )
         if result:
-            filepath = result if isinstance(result, str) else result[0]
+            # Handle both string and tuple/list return types
+            if isinstance(result, str):
+                filepath = result
+            elif len(result) > 0:
+                filepath = result[0]
+            else:
+                return {"cancelled": True}
+            
             if not filepath.lower().endswith(".tsv"):
                 filepath += ".tsv"
             return {"filepath": filepath}

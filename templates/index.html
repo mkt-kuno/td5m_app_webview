@@ -188,6 +188,13 @@
 
         // Wait for pywebview API to be ready
         window.addEventListener('pywebviewready', function() {
+            // Verify API is available
+            if (typeof pywebview === 'undefined' || typeof pywebview.api === 'undefined') {
+                console.error('pywebview API is not available');
+                updateStatus(false, 'API not available');
+                return;
+            }
+            
             console.log('pywebview API is ready');
             
             startSaveBtn.addEventListener('click', () => { startSaving(); });
