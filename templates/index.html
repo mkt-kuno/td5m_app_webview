@@ -39,36 +39,14 @@
         const dataContainer = document.getElementById('dataContainer');
         const timestampEl = document.getElementById('timestamp');
         const statusEl = document.getElementById('status');
-            const startSaveBtn = document.getElementById('startSaveBtn');
-            const stopSaveBtn = document.getElementById('stopSaveBtn');
-            const saveStatusEl = document.getElementById('saveStatus');
+        const startSaveBtn = document.getElementById('startSaveBtn');
+        const stopSaveBtn = document.getElementById('stopSaveBtn');
+        const saveStatusEl = document.getElementById('saveStatus');
 
         // Fetch/sync state
         let lastTime = null;
-        let lastData = null;
         let isFetching = false;
-
-        // Saving state
-        let isSaving = false; // true only after destination confirmed
-        let savingPending = false; // between click and destination confirmation
-        let fsWritable = null; // FileSystemWritableFileStream | null
-        let bufferLines = [];
-        let headerWritten = false;
-        let headerChannelCount = 0;
-        let headerWrittenToThisFile = false; // 新規ファイルに対してヘッダーを書いたか
-
-        // Utilities
-        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-        async function forceFetchLatest() {
-            let tries = 0;
-            while (isFetching && tries < 100) { // wait up to ~1s
-                await sleep(10);
-                tries += 1;
-            }
-            console.debug('[forceFetchLatest] start (tries=%d)', tries);
-            await fetchData();
-            console.debug('[forceFetchLatest] done');
-        }
+        let isSaving = false;
 
         function updateStatus(isConnected, message = '') {
             if (isConnected) {
@@ -122,194 +100,96 @@
         }
 
         async function fetchData() {
-                if (isFetching) return;
-                console.debug('[fetchData] start');
-                isFetching = true;
+            if (isFetching) return;
+            isFetching = true;
             try {
-                const response = await fetch('/v1/');
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const jsonData = await response.json();
-                if (jsonData && Array.isArray(jsonData.data)) {
-                    lastData = jsonData.data;
-                }
-                console.debug('[fetchData] ok time=%s len=%s', jsonData?.time, jsonData?.data?.length);
+                // Use pywebview's JavaScript API to call Python method
+                const jsonData = await pywebview.api.get_latest_data();
                 
-                    if (jsonData.data && jsonData.time) {
-                        // Only update UI and saving when time changes
-                        if (jsonData.time !== lastTime) {
-                            console.debug('[fetchData] time changed %s -> %s', lastTime, jsonData.time);
-                            lastTime = jsonData.time;
-                            renderData(jsonData.data, jsonData.time);
-                            if (isSaving) {
-                                console.debug('[fetchData] appendCsv for %s', jsonData.time);
-                                await appendCsv(jsonData.time, jsonData.data);
-                            }
-                        }
-                        updateStatus(true);
+                if (jsonData.error) {
+                    updateStatus(false, jsonData.error);
+                    return;
+                }
+                
+                if (jsonData.data && jsonData.time) {
+                    // Only update UI when time changes
+                    if (jsonData.time !== lastTime) {
+                        lastTime = jsonData.time;
+                        renderData(jsonData.data, jsonData.time);
+                    }
+                    updateStatus(true);
+                    
+                    // Update save status if saving
+                    if (isSaving) {
+                        saveStatusEl.textContent = `保存中: ${jsonData.data.length}ch / 最新 ${jsonData.time}`;
+                    }
                 } else {
-                    throw new Error('Invalid data format');
+                    updateStatus(false, 'Invalid data format');
                 }
             } catch (error) {
                 console.error('[fetchData] error:', error);
                 updateStatus(false, 'Error: ' + error.message);
-                } finally {
-                    isFetching = false;
-                    console.debug('[fetchData] end');
+            } finally {
+                isFetching = false;
             }
         }
 
-            // TSV helpers
-            function tsvEscape(value) {
-                // For TSV, replace tabs and newlines with spaces
-                const s = String(value);
-                return s.replace(/[\t\n\r]/g, ' ');
-            }
-
-            function makeHeader(count) {
-                const labels = Array.from({ length: count }, (_, i) => `CH${String(i).padStart(3, '0')}`);
-                return ['time', ...labels].join('\t') + '\n';
-            }
-
-            async function writeText(text) {
-                try {
-                    if (fsWritable) {
-                        const bytes = new TextEncoder().encode(text);
-                        await fsWritable.write(bytes);
-                        console.debug('[writeText] wrote to file bytes=%d', bytes.length);
-                    } else {
-                        bufferLines.push(text);
-                        console.debug('[writeText] buffered length now=%d', bufferLines.length);
-                    }
-                } catch (e) {
-                    console.error('[writeText] error:', e);
-                    throw e;
-                }
-            }
-
-            async function appendCsv(time, data) {
-                if (!isSaving) {
-                    console.debug('[appendCsv] skip: not saving');
+        async function startSaving() {
+            if (isSaving) return;
+            
+            startSaveBtn.disabled = true;
+            saveStatusEl.textContent = '保存先を選択…';
+            
+            try {
+                // Use pywebview's file dialog
+                const result = await pywebview.api.select_save_file();
+                
+                if (result.cancelled) {
+                    startSaveBtn.disabled = false;
+                    saveStatusEl.textContent = '未保存';
                     return;
                 }
-                console.debug('[appendCsv] time=%s headerWritten=%s headerWrittenToThisFile=%s', time, headerWritten, headerWrittenToThisFile);
-                // 新しいファイルに対しては、必ず先にヘッダーを出力する
-                if (!headerWrittenToThisFile) {
-                    headerChannelCount = data.length;
-                    console.debug('[appendCsv] writing header to file with %d channels', headerChannelCount);
-                    await writeText(makeHeader(headerChannelCount));
-                    headerWritten = true; // 論理的にもヘッダー済みとする
-                    headerWrittenToThisFile = true; // このファイルにも出力済み
-                    console.debug('[appendCsv] header written to file');
-                }
-                const cols = [tsvEscape(time), ...data.map(v => (v === null || v === undefined) ? '' : tsvEscape(String(v)))];
-                await writeText(cols.join('\t') + '\n');
-                console.debug('[appendCsv] row written for %s', time);
-                saveStatusEl.textContent = `保存中: ${headerChannelCount}ch / 最新 ${time}`;
-            }
-
-            async function startSaving() {
-                console.log('[startSaving] click');
-                if (isSaving || savingPending) return;
-                // Arm, but do not start writing until destination is ready
-                savingPending = true;
-                headerWritten = false;
-                headerChannelCount = 0;
-                bufferLines = [];
-                fsWritable = null;
-                headerWrittenToThisFile = false;
-
-                startSaveBtn.disabled = true;
-                stopSaveBtn.disabled = true;
-                saveStatusEl.textContent = '保存先を選択…';
-
-                try {
-                    if (window.showSaveFilePicker) {
-                        const handle = await window.showSaveFilePicker({
-                            suggestedName: 'tds530_log.tsv',
-                            types: [{ description: 'TSV', accept: { 'text/tab-separated-values': ['.tsv'] } }],
-                            excludeAcceptAllOption: false
-                        });
-                        fsWritable = await handle.createWritable({ keepExistingData: false });
-                        console.log('[startSaving] writable acquired');
-                        // Now saving is active
-                        isSaving = true;
-                        stopSaveBtn.disabled = false;
-                        saveStatusEl.textContent = '保存中（TSV）';
-                    } else {
-                        // Fallback: buffer in memory and download on stop
-                        console.log('[startSaving] fallback buffer mode');
-                        // Activate saving in buffer mode
-                        isSaving = true;
-                        stopSaveBtn.disabled = false;
-                        saveStatusEl.textContent = '保存中（TSV, ブラウザ保存）';
-                    }
-
-                    // Force one fetch to ensure we have latest layout
-                    await forceFetchLatest();
-                    console.debug('[startSaving] lastData len=%s', lastData?.length);
-
-                    // Write header immediately if we already know channel count
-                    if (Array.isArray(lastData) && !headerWrittenToThisFile) {
-                        headerChannelCount = lastData.length;
-                        console.debug('[startSaving] writing header immediately with %d channels', headerChannelCount);
-                        await writeText(makeHeader(headerChannelCount));
-                        headerWritten = true;
-                        headerWrittenToThisFile = true;
-                        console.debug('[startSaving] header written (start)');
-                        // Also write the current row immediately if we know time
-                        if (lastTime) {
-                            console.debug('[startSaving] writing immediate first row for %s', lastTime);
-                            await appendCsv(lastTime, lastData);
-                        }
-                    }
-                } catch (e) {
-                    // User canceled
-                    isSaving = false;
-                    savingPending = false;
+                
+                // Start saving on Python side
+                const saveResult = await pywebview.api.start_saving(result.filepath);
+                
+                if (saveResult.error) {
                     startSaveBtn.disabled = false;
-                    stopSaveBtn.disabled = true;
-                    saveStatusEl.textContent = '未保存';
-                    console.warn('[startSaving] canceled or error:', e);
+                    saveStatusEl.textContent = 'エラー: ' + saveResult.error;
+                    return;
                 }
+                
+                isSaving = true;
+                startSaveBtn.disabled = true;
+                stopSaveBtn.disabled = false;
+                saveStatusEl.textContent = '保存中（TSV）';
+                
+            } catch (e) {
+                console.error('[startSaving] error:', e);
+                startSaveBtn.disabled = false;
+                saveStatusEl.textContent = '未保存';
             }
-                // Successfully activated
-                savingPending = false;
+        }
 
-            async function stopSaving() {
-                console.log('[stopSaving] click');
-                if (!isSaving && !savingPending) return;
+        async function stopSaving() {
+            if (!isSaving) return;
+            
+            try {
+                await pywebview.api.stop_saving();
                 isSaving = false;
-                savingPending = false;
                 startSaveBtn.disabled = false;
                 stopSaveBtn.disabled = true;
-
-                try {
-                    if (fsWritable) {
-                        await fsWritable.close();
-                        fsWritable = null;
-                        saveStatusEl.textContent = '保存完了（TSV）';
-                        console.log('[stopSaving] writable closed');
-                    } else {
-                        const blob = new Blob(bufferLines, { type: 'text/tab-separated-values' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = 'tds530_log.tsv';
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                        saveStatusEl.textContent = '保存完了（TSV, ダウンロード）';
-                        console.log('[stopSaving] download triggered');
-                    }
-                } catch (e) {
-                    console.error('[stopSaving] 保存エラー:', e);
-                    saveStatusEl.textContent = '保存エラー';
-                }
+                saveStatusEl.textContent = '保存完了（TSV）';
+            } catch (e) {
+                console.error('[stopSaving] error:', e);
+                saveStatusEl.textContent = '保存エラー';
             }
+        }
 
+        // Wait for pywebview API to be ready
+        window.addEventListener('pywebviewready', function() {
+            console.log('pywebview API is ready');
+            
             startSaveBtn.addEventListener('click', () => { startSaving(); });
             stopSaveBtn.addEventListener('click', () => { stopSaving(); });
 
@@ -317,6 +197,7 @@
             fetchData();
             // Poll every 500ms
             setInterval(fetchData, 500);
+        });
     </script>
 </body>
 </html>
