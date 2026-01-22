@@ -2,8 +2,88 @@ import webview
 import socket
 import datetime
 import os
+import sys
 import threading
 import time
+import tempfile
+import atexit
+
+# Platform-specific imports for file locking
+if sys.platform == "win32":
+    import msvcrt
+else:
+    import fcntl
+
+
+class SingleInstanceLock:
+    """
+    Prevents multiple instances of the application from running simultaneously.
+    Works on both Windows and Linux by using exclusive file locking.
+    """
+    
+    def __init__(self, app_name: str):
+        self.app_name = app_name
+        self.lock_file_path = os.path.join(tempfile.gettempdir(), f"{app_name}.lock")
+        self._lock_file = None
+    
+    def acquire(self) -> bool:
+        """
+        Attempt to acquire the lock.
+        Returns True if the lock was acquired, False if another instance is running.
+        """
+        try:
+            # Open or create the lock file
+            self._lock_file = open(self.lock_file_path, "w")
+            
+            if sys.platform == "win32":
+                # Windows: use msvcrt for locking
+                try:
+                    msvcrt.locking(self._lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+                    return True
+                except (IOError, OSError):
+                    self._lock_file.close()
+                    self._lock_file = None
+                    return False
+            else:
+                # Linux/macOS: use fcntl for locking
+                try:
+                    fcntl.flock(self._lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    return True
+                except (IOError, OSError):
+                    self._lock_file.close()
+                    self._lock_file = None
+                    return False
+        except Exception:
+            if self._lock_file:
+                self._lock_file.close()
+                self._lock_file = None
+            return False
+    
+    def release(self):
+        """Release the lock."""
+        if self._lock_file:
+            try:
+                if sys.platform == "win32":
+                    try:
+                        msvcrt.locking(self._lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        fcntl.flock(self._lock_file.fileno(), fcntl.LOCK_UN)
+                    except Exception:
+                        pass
+                self._lock_file.close()
+            except Exception:
+                pass
+            finally:
+                self._lock_file = None
+            
+            # Try to remove the lock file
+            try:
+                os.remove(self.lock_file_path)
+            except Exception:
+                pass
 
 
 class TDS530DataCollector:
@@ -216,6 +296,27 @@ class TDS530Api:
         return {"cancelled": True}
 
 if __name__ == "__main__":
+    APP_NAME = "TDS530Logger"
+    
+    # Prevent multiple instances
+    instance_lock = SingleInstanceLock(APP_NAME)
+    if not instance_lock.acquire():
+        # Show error message and exit
+        if sys.platform == "win32":
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(
+                0,
+                "アプリケーションは既に起動しています。",
+                APP_NAME,
+                0x30  # MB_ICONWARNING
+            )
+        else:
+            print("アプリケーションは既に起動しています。", file=sys.stderr)
+        sys.exit(1)
+    
+    # Register cleanup on exit
+    atexit.register(instance_lock.release)
+    
     HOST = "192.168.100.100"
     PORT = 4242
     HOST = "192.168.100.100"
@@ -234,12 +335,13 @@ if __name__ == "__main__":
         width=1200,
         height=800)
 
-        # Start data collector when window is ready
+    # Start data collector when window is ready
     def on_loaded():
         collector.start()
     
     def on_closed():
         collector.stop()
+        instance_lock.release()
     
     window.events.loaded += on_loaded
     window.events.closed += on_closed
