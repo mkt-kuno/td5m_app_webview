@@ -174,6 +174,7 @@ class TDS530DataCollector:
                     
                     if self.recv_callback is not None:
                         self.recv_callback(ret)
+                    time.sleep(0.1)
                 
             except (ConnectionRefusedError, socket.timeout, OSError):
                 # Connection failed, retry after delay
