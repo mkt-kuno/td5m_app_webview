@@ -8,21 +8,18 @@
 </head>
 <body class="bg-gray-100 min-h-screen p-6">
     <div class="max-w-[1800px] mx-auto">
-        <h1 class="text-4xl font-bold text-gray-800 mb-6">TDS530 Data Monitor</h1>
-        
-        <!-- Timestamp Display -->
-        <div class="bg-white rounded-lg shadow-md p-4 mb-6">
-            <div class="text-base text-gray-600">Last Update:</div>
-            <div id="timestamp" class="text-2xl font-semibold text-gray-800">--</div>
-        </div>
-
-        <!-- Status + Controls -->
-        <div class="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <!-- Header Bar: Title + Timestamp + Status + Controls in one row -->
+        <div class="bg-white rounded-lg shadow-md px-6 py-3 mb-4 flex items-center gap-6 flex-wrap">
+            <h1 class="text-2xl font-bold text-gray-800 whitespace-nowrap">TDS530 Data Monitor</h1>
+            <div class="flex items-center gap-2">
+                <span class="text-sm text-gray-500">Last Update:</span>
+                <span id="timestamp" class="text-lg font-semibold text-gray-800">--</span>
+            </div>
             <span id="status" class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-200 text-gray-800">
                 <span class="w-2 h-2 mr-2 rounded-full bg-gray-400"></span>
                 Connecting...
             </span>
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 ml-auto">
                 <button id="startSaveBtn" class="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">保存開始</button>
                 <button id="stopSaveBtn" class="px-4 py-2 rounded-md bg-gray-600 text-white hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" disabled>保存終了</button>
                 <span id="saveStatus" class="text-sm text-gray-600">未保存</span>
@@ -30,7 +27,7 @@
         </div>
 
         <!-- Data Cards Grid -->
-        <div id="dataContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-8 gap-4">
+        <div id="dataContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
             <!-- Cards will be inserted here dynamically -->
         </div>
     </div>
@@ -72,7 +69,22 @@
             if (value === null || value === undefined || value === 'None') {
                 return 'None';
             }
-            return value.toFixed(2);
+            const sign = value >= 0 ? '+' : '-';
+            const absVal = Math.abs(value);
+            const intStr = Math.floor(absVal).toString();
+            const maxNumLen = 7; // 8 total - 1 for sign
+            if (intStr.length >= maxNumLen) {
+                return sign + intStr.substring(0, maxNumLen);
+            }
+            const fracDigits = maxNumLen - intStr.length - 1; // -1 for '.'
+            if (fracDigits <= 0) {
+                return sign + intStr;
+            }
+            let formatted = absVal.toFixed(fracDigits);
+            if (formatted.length > maxNumLen) {
+                formatted = formatted.substring(0, maxNumLen);
+            }
+            return sign + formatted;
         }
 
         function renderData(data, time) {
@@ -85,14 +97,21 @@
             // Create cards for each channel
             data.forEach((value, index) => {
                 const card = document.createElement('div');
-                card.className = 'bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow duration-200';
+                card.className = 'bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow duration-200 min-h-[120px] flex flex-col justify-between';
                 
                 const isNull = value === null || value === undefined || value === 'None';
-                const valueClass = isNull ? 'text-red-600' : 'text-blue-600';
+                let valueStyle = '';
+                if (isNull) {
+                    valueStyle = 'color: rgba(0,0,0,0.05)';
+                } else if (value < 0) {
+                    valueStyle = 'color: #ea580c'; // orange-600
+                } else {
+                    valueStyle = 'color: #2563eb'; // blue-600
+                }
                 
                 card.innerHTML = `
                     <div class="text-sm font-semibold text-gray-600 mb-2">${formatChannelLabel(index)}</div>
-                    <div class="text-3xl font-bold ${valueClass}">${formatValue(value)}</div>
+                    <div class="text-3xl font-bold font-mono" style="${valueStyle}">${formatValue(value)}</div>
                 `;
                 
                 dataContainer.appendChild(card);
