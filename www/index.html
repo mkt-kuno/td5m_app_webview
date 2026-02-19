@@ -5,11 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TDS530 TCP Logger</title>
     <script src="tailwind.min.js"></script>
+    <script src="chart.min.js"></script>
 </head>
-<body class="bg-gray-100 min-h-screen p-6">
+<body class="bg-gray-100 min-h-screen px-6 py-4">
     <div class="max-w-[1800px] mx-auto">
         <!-- Header Bar: Title + Timestamp + Status + Controls in one row -->
-        <div class="bg-white rounded-lg shadow-md px-6 py-3 mb-4 flex items-center gap-6 flex-wrap">
+        <div class="bg-white rounded-lg shadow-md px-6 py-3 mb-3 flex items-center gap-6 flex-wrap">
             <h1 class="text-2xl font-bold text-gray-800 whitespace-nowrap">TDS530 Data Monitor</h1>
             <div class="flex items-center gap-2">
                 <span class="text-sm text-gray-500">Last Update:</span>
@@ -44,8 +45,29 @@
         let lastTime = null;
         let isFetching = false;
         let isSaving = false;
+        let wasConnected = false;
+
+        // Chart state
+        const FIFO_SIZE = 512;
+        const CHART_BLUE   = 'rgba(37, 99, 235, 0.25)';
+        const CHART_ORANGE = 'rgba(234, 88, 12, 0.25)';
+        let channelCharts = {};
+        let channelCount  = 0;
+        let tickCounter   = 0;
+
+        function chartColorForValue(value) {
+            return value >= 0 ? CHART_BLUE : CHART_ORANGE;
+        }
+
+        function textColorForValue(value) {
+            return value < 0 ? '#ea580c' : '#2563eb';
+        }
 
         function updateStatus(isConnected, message = '') {
+            if (!isConnected && wasConnected) {
+                resetCharts();
+            }
+            wasConnected = isConnected;
             if (isConnected) {
                 statusEl.innerHTML = `
                     <span class="w-2 h-2 mr-2 rounded-full bg-green-500 animate-pulse"></span>
@@ -90,35 +112,136 @@
             return sign + formatted;
         }
 
+        function createCards(count) {
+            // Destroy existing charts to free memory
+            Object.values(channelCharts).forEach(c => c.destroy());
+            channelCharts = {};
+            dataContainer.innerHTML = '';
+            channelCount = count;
+            tickCounter  = 0;
+
+            for (let i = 0; i < count; i++) {
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 relative overflow-hidden h-[76px]';
+
+                // Chart background container (fills card, behind text)
+                const chartWrap = document.createElement('div');
+                chartWrap.style.cssText = 'position:absolute;inset:0;pointer-events:none;';
+                const canvas = document.createElement('canvas');
+                chartWrap.appendChild(canvas);
+                card.appendChild(chartWrap);
+
+                // Text overlay (on top of chart)
+                const content = document.createElement('div');
+                content.className = 'relative z-10 px-2 py-1 h-full flex flex-col justify-between pointer-events-none select-none';
+                content.innerHTML = `
+                    <div class="text-xs font-semibold text-gray-500">${formatChannelLabel(i)}</div>
+                    <div id="val-${i}" class="text-xl font-bold font-mono leading-none" style="color:rgba(0,0,0,0.05)">None</div>
+                `;
+                card.appendChild(content);
+
+                dataContainer.appendChild(card);
+
+                // Create Chart.js instance
+                try { channelCharts[i] = new Chart(canvas.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            data: [],
+                            borderColor: CHART_BLUE,
+                            borderWidth: 1,
+                            pointRadius: 0,
+                            fill: false,
+                            tension: 0.2,
+                            spanGaps: false
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: false,
+                        plugins: {
+                            legend:  { display: false },
+                            tooltip: { enabled: false }
+                        },
+                        scales: {
+                            x: { display: false },
+                            y: {
+                                display: true,
+                                ticks:  { display: false },
+                                border: { display: false },
+                                grid: {
+                                    display: true,
+                                    color: 'rgba(0,0,0,0.06)'
+                                }
+                            }
+                        }
+                    }
+                }); } catch (e) { console.error(`[createCards] Chart init error for CH${i}:`, e); }
+            }
+        }
+
+        function updateCards(data) {
+            tickCounter++;
+            for (let i = 0; i < data.length; i++) {
+                const value  = data[i];
+                const isNull = value === null || value === undefined || value === 'None';
+
+                // Update value display
+                const valEl = document.getElementById(`val-${i}`);
+                if (valEl) {
+                    valEl.style.color = isNull ? 'rgba(0,0,0,0.05)' : textColorForValue(value);
+                    valEl.textContent = formatValue(value);
+                }
+
+                // Update chart buffer (skip null values)
+                if (!isNull) {
+                    const chart = channelCharts[i];
+                    if (chart) {
+                        const labels  = chart.data.labels;
+                        const dataset = chart.data.datasets[0];
+                        labels.push(tickCounter);
+                        dataset.data.push(value);
+                        if (labels.length > FIFO_SIZE) {
+                            labels.shift();
+                            dataset.data.shift();
+                        }
+                        dataset.borderColor = chartColorForValue(value);
+                        chart.update('none');
+                    }
+                }
+            }
+        }
+
+        function resetCharts() {
+            tickCounter = 0;
+            for (let i = 0; i < channelCount; i++) {
+                const chart = channelCharts[i];
+                if (chart) {
+                    chart.data.labels = [];
+                    chart.data.datasets[0].data        = [];
+                    chart.data.datasets[0].borderColor = CHART_BLUE;
+                    chart.update('none');
+                }
+                const valEl = document.getElementById(`val-${i}`);
+                if (valEl) {
+                    valEl.style.color = 'rgba(0,0,0,0.05)';
+                    valEl.textContent = 'None';
+                }
+            }
+        }
+
         function renderData(data, time) {
             // Update timestamp
             timestampEl.textContent = time;
 
-            // Clear existing cards
-            dataContainer.innerHTML = '';
+            // (Re)create cards only when channel count changes
+            if (data.length !== channelCount) {
+                createCards(data.length);
+            }
 
-            // Create cards for each channel
-            data.forEach((value, index) => {
-                const card = document.createElement('div');
-                card.className = 'bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow duration-200 min-h-[120px] flex flex-col justify-between';
-                
-                const isNull = value === null || value === undefined || value === 'None';
-                let valueStyle = '';
-                if (isNull) {
-                    valueStyle = 'color: rgba(0,0,0,0.05)';
-                } else if (value < 0) {
-                    valueStyle = 'color: #ea580c'; // orange-600
-                } else {
-                    valueStyle = 'color: #2563eb'; // blue-600
-                }
-                
-                card.innerHTML = `
-                    <div class="text-sm font-semibold text-gray-600 mb-2">${formatChannelLabel(index)}</div>
-                    <div class="text-3xl font-bold font-mono" style="${valueStyle}">${formatValue(value)}</div>
-                `;
-                
-                dataContainer.appendChild(card);
-            });
+            updateCards(data);
         }
 
         async function fetchData() {
