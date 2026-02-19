@@ -83,6 +83,9 @@
             let formatted = absVal.toFixed(fracDigits);
             if (formatted.length > maxNumLen) {
                 formatted = formatted.substring(0, maxNumLen);
+                if (formatted.endsWith('.')) {
+                    formatted = formatted.slice(0, -1);
+                }
             }
             return sign + formatted;
         }
