@@ -169,14 +169,30 @@
                             tooltip: { enabled: false }
                         },
                         scales: {
-                            x: { display: false },
+                            x: {
+                                display: false,
+                                afterDataLimits(scale) {
+                                    const range = (scale.max - scale.min) || 1;
+                                    scale.max += range * 0.05;
+                                    scale.min -= range * 0.05;
+                                }
+                            },
                             y: {
                                 display: true,
                                 ticks:  { display: false },
                                 border: { display: false },
+                                afterDataLimits(scale) {
+                                    const dataRange = (scale.max - scale.min) || 1;
+                                    scale.max = Math.max(scale.max, 0);
+                                    scale.min = Math.min(scale.min, 0);
+                                    scale.max += dataRange * 0.05;
+                                    scale.min -= dataRange * 0.05;
+                                },
                                 grid: {
                                     display: true,
-                                    color: 'rgba(0,0,0,0.03)'
+                                    color: function(context) {
+                                        return context.tick.value === 0 ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.03)';
+                                    }
                                 }
                             }
                         }
