@@ -182,11 +182,11 @@
                                 ticks:  { display: false },
                                 border: { display: false },
                                 afterDataLimits(scale) {
+                                    const dataRange = (scale.max - scale.min) || 1;
                                     scale.max = Math.max(scale.max, 0);
                                     scale.min = Math.min(scale.min, 0);
-                                    const range = (scale.max - scale.min) || 1;
-                                    scale.max += range * 0.05;
-                                    scale.min -= range * 0.05;
+                                    scale.max += dataRange * 0.05;
+                                    scale.min -= dataRange * 0.05;
                                 },
                                 grid: {
                                     display: true,
