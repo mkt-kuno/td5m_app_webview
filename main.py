@@ -248,13 +248,14 @@ class TDS530Api:
         self._save_file.flush()
     
     def get_latest_data(self):
-        """Get latest physical data - called from JavaScript."""
+        """Get latest raw and physical data - called from JavaScript."""
         with self._lock:
             if not self.latest_data:
                 return {"error": "No data available"}
             return {
                 "time": self.latest_data["time"].strftime("%Y/%m/%d %H:%M:%S"),
-                "data": self.latest_data["physical"]
+                "raw": self.latest_data["raw"],
+                "physical": self.latest_data["physical"]
             }
     
     def get_calibration(self):

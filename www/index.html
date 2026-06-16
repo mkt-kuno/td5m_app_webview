@@ -35,6 +35,17 @@
         <div id="blocksContainer" class="flex-1 grid grid-cols-5 gap-3 items-start content-start overflow-auto min-h-0">
             <!-- Blocks will be inserted here dynamically -->
         </div>
+
+        <!-- Calibration summary card -->
+        <div id="lowerContainer" class="mt-3 bg-white rounded-lg shadow-md p-3 flex flex-col">
+            <div class="flex items-center justify-between mb-2">
+                <div class="text-sm font-bold text-gray-700">Calibration</div>
+                <button id="editCalibBtn" class="px-3 py-1 rounded-md bg-indigo-600 text-white text-xs hover:bg-indigo-700">編集</button>
+            </div>
+            <div id="calibSummary" class="text-xs text-gray-600">
+                <!-- Calibration summary will be inserted here -->
+            </div>
+        </div>
     </div>
 
     <!-- Calibration Modal -->
@@ -59,6 +70,8 @@
 
     <script>
         const blocksContainer = document.getElementById('blocksContainer');
+        const calibSummary = document.getElementById('calibSummary');
+        const editCalibBtn = document.getElementById('editCalibBtn');
         const timestampEl = document.getElementById('timestamp');
         const statusEl = document.getElementById('status');
         const startSaveBtn = document.getElementById('startSaveBtn');
@@ -243,60 +256,48 @@
             `;
             block.appendChild(header);
 
-            // Body grid: loadcell area + aux column, displacement below
+            // Body grid: loadcell area and displacement below
             const body = document.createElement('div');
-            body.className = 'grid grid-cols-[1fr_70px] grid-rows-[auto_auto] gap-2';
+            body.className = 'grid grid-rows-[auto_auto] gap-2';
 
-            // Load cell area with buffer walls
+            // Load cell area (4x2 grid)
             const loadcellArea = document.createElement('div');
-            loadcellArea.className = 'row-span-1 col-span-1 grid grid-cols-[6px_1fr_6px] gap-1 bg-gray-50 rounded border border-gray-200 p-1';
-
-            const leftWall = document.createElement('div');
-            leftWall.className = 'bg-gray-300 rounded';
-            loadcellArea.appendChild(leftWall);
-
-            const grid = document.createElement('div');
-            grid.className = 'grid grid-cols-4 grid-rows-2 gap-1';
+            loadcellArea.className = 'grid grid-cols-4 grid-rows-2 gap-1 bg-gray-50 rounded border border-gray-200 p-1';
 
             // Top row: Z directions
             for (let col = 0; col < 4; col++) {
                 const ch = baseCh + col * 2; // 0,2,4,6
                 if (ch <= endCh) {
-                    grid.appendChild(createChannelCell(ch, `${formatChannelLabel(ch)} Z`, 'text-[10px]', 'border-blue-200', 'bg-blue-50/50', 'h-28', true));
+                    loadcellArea.appendChild(createChannelCell(ch, `${formatChannelLabel(ch)} Z`, 'text-[10px]', 'border-blue-200', 'bg-blue-50/50', 'h-36', true));
                 }
             }
             // Bottom row: X directions
             for (let col = 0; col < 4; col++) {
                 const ch = baseCh + col * 2 + 1; // 1,3,5,7
                 if (ch <= endCh) {
-                    grid.appendChild(createChannelCell(ch, `${formatChannelLabel(ch)} X`, 'text-[10px]', 'border-orange-200', 'bg-orange-50/50', 'h-28', true));
+                    loadcellArea.appendChild(createChannelCell(ch, `${formatChannelLabel(ch)} X`, 'text-[10px]', 'border-orange-200', 'bg-orange-50/50', 'h-36', true));
                 }
             }
-            loadcellArea.appendChild(grid);
-
-            const rightWall = document.createElement('div');
-            rightWall.className = 'bg-gray-300 rounded';
-            loadcellArea.appendChild(rightWall);
 
             body.appendChild(loadcellArea);
 
-            // AUX (right column)
-            const auxCh = baseCh + 9;
-            if (auxCh <= endCh) {
-                const auxCell = createChannelCell(auxCh, `AUX ${formatChannelLabel(auxCh)}`, 'text-xs', 'border-purple-200', 'bg-purple-50/50', 'h-full', true);
-                body.appendChild(auxCell);
-            } else {
-                const spacer = document.createElement('div');
-                body.appendChild(spacer);
-            }
+            // Bottom row: Displacement + AUX side by side
+            const bottomRow = document.createElement('div');
+            bottomRow.className = 'grid grid-cols-[3fr_1fr] gap-2';
 
-            // Displacement (bottom, spans both columns)
             const dispCh = baseCh + 8;
             if (dispCh <= endCh) {
-                const dispCell = createChannelCell(dispCh, `変位 ${formatChannelLabel(dispCh)}`, 'text-2xl', 'border-green-200', 'bg-green-50/50', 'h-20');
-                dispCell.classList.add('col-span-2');
-                body.appendChild(dispCell);
+                const dispCell = createChannelCell(dispCh, `変位 ${formatChannelLabel(dispCh)}`, 'text-2xl', 'border-green-200', 'bg-green-50/50', 'h-48');
+                bottomRow.appendChild(dispCell);
             }
+
+            const auxCh = baseCh + 9;
+            if (auxCh <= endCh) {
+                const auxCell = createChannelCell(auxCh, `AUX ${formatChannelLabel(auxCh)}`, 'text-sm', 'border-purple-200', 'bg-purple-50/50', 'h-48', true);
+                bottomRow.appendChild(auxCell);
+            }
+
+            body.appendChild(bottomRow);
 
             block.appendChild(body);
             return block;
@@ -365,14 +366,14 @@
             }
         }
 
-        function renderData(data, time) {
+        function renderData(physicalData, time) {
             timestampEl.textContent = time;
 
-            if (data.length !== channelCount) {
-                createBlocks(data.length);
+            if (physicalData.length !== channelCount) {
+                createBlocks(physicalData.length);
             }
 
-            updateChannels(data);
+            updateChannels(physicalData);
         }
 
         async function fetchData() {
@@ -386,15 +387,15 @@
                     return;
                 }
 
-                if (jsonData.data && jsonData.time) {
+                if (jsonData.physical && jsonData.time) {
                     if (jsonData.time !== lastTime) {
                         lastTime = jsonData.time;
-                        renderData(jsonData.data, jsonData.time);
+                        renderData(jsonData.physical, jsonData.time);
                     }
                     updateStatus(true);
 
                     if (isSaving) {
-                        saveStatusEl.textContent = `保存中: ${jsonData.data.length}ch / 最新 ${jsonData.time}`;
+                        saveStatusEl.textContent = `保存中: ${jsonData.physical.length}ch / 最新 ${jsonData.time}`;
                     }
                 } else {
                     updateStatus(false, 'Invalid data format');
@@ -483,6 +484,22 @@
             });
         }
 
+        function renderCalibSummary(values) {
+            calibSummary.innerHTML = '';
+            const grid = document.createElement('div');
+            grid.className = 'grid grid-cols-4 gap-x-4 gap-y-2';
+            CALIB_GROUPS.forEach(key => {
+                const coeffs = values[key] || { a: 0, b: 1, c: 0 };
+                const item = document.createElement('div');
+                item.innerHTML = `
+                    <div class="font-semibold text-gray-700">${key}</div>
+                    <div class="text-[10px] text-gray-500">a=${coeffs.a} b=${coeffs.b} c=${coeffs.c}</div>
+                `;
+                grid.appendChild(item);
+            });
+            calibSummary.appendChild(grid);
+        }
+
         async function openCalibModal() {
             calibStatus.textContent = '';
             calibModal.classList.remove('hidden');
@@ -516,11 +533,21 @@
                     calibStatus.textContent = '保存エラー: ' + result.error;
                 } else {
                     calibStatus.textContent = '保存しました';
+                    renderCalibSummary(values);
                     setTimeout(closeCalibModal, 500);
                 }
             } catch (e) {
                 console.error('[saveCalibration] error:', e);
                 calibStatus.textContent = '保存エラー';
+            }
+        }
+
+        async function loadCalibSummary() {
+            try {
+                const values = await pywebview.api.get_calibration();
+                renderCalibSummary(values);
+            } catch (e) {
+                console.error('[loadCalibSummary] error:', e);
             }
         }
 
@@ -536,12 +563,14 @@
             startSaveBtn.addEventListener('click', () => { startSaving(); });
             stopSaveBtn.addEventListener('click', () => { stopSaving(); });
             calibBtn.addEventListener('click', () => { openCalibModal(); });
+            editCalibBtn.addEventListener('click', () => { openCalibModal(); });
             closeCalibBtn.addEventListener('click', () => { closeCalibModal(); });
             saveCalibBtn.addEventListener('click', () => { saveCalibration(); });
             calibModal.addEventListener('click', (e) => {
                 if (e.target === calibModal) closeCalibModal();
             });
 
+            loadCalibSummary();
             fetchData();
             setInterval(fetchData, 500);
         });
