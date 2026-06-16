@@ -8,6 +8,8 @@ import time
 import tempfile
 import atexit
 
+from calibration import CalibrationStore
+
 # Platform-specific imports for file locking
 if sys.platform == "win32":
     import msvcrt
@@ -197,7 +199,8 @@ class TDS530DataCollector:
 class TDS530Api:
     """API class exposed to JavaScript via pywebview."""
     
-    def __init__(self):
+    def __init__(self, calibration: CalibrationStore):
+        self.calibration = calibration
         self.latest_data: dict = {}
         self._lock = threading.Lock()
         self._save_file = None
@@ -206,40 +209,65 @@ class TDS530Api:
     def update_data(self, data: dict):
         """Called by the data collector when new data is received."""
         with self._lock:
-            self.latest_data = data
+            raw_data = data["data"]
+            physical_data = self.calibration.apply(raw_data)
+            stored = {
+                "time": data["time"],
+                "raw": raw_data,
+                "physical": physical_data,
+            }
+            self.latest_data = stored
             
             # Save to file if saving is enabled
             if self._save_file is not None:
                 try:
-                    self._write_data_to_file(data)
+                    self._write_data_to_file(stored)
                 except Exception:
                     pass
     
     def _write_data_to_file(self, data: dict):
-        """Write data to TSV file."""
+        """Write raw and physical data to TSV file."""
         if self._save_file is None:
             return
         
         if not self._header_written:
-            header = "\t".join(["Time"] + [f"CH{idx:03}" for idx in range(len(data["data"]))]) + "\n"
-            self._save_file.write(header)
+            header_parts = ["Time"]
+            for idx in range(len(data["raw"])):
+                header_parts.append(f"RAW{idx:03}")
+                header_parts.append(f"PHY{idx:03}")
+            self._save_file.write("\t".join(header_parts) + "\n")
             self._header_written = True
         
         time_str = data["time"].strftime("%Y/%m/%d %H:%M:%S")
-        data_strs = [str(val) if val is not None else "" for val in data["data"]]
-        line = "\t".join([time_str] + data_strs) + "\n"
+        data_strs = [time_str]
+        for raw, phy in zip(data["raw"], data["physical"]):
+            data_strs.append(str(raw) if raw is not None else "")
+            data_strs.append(str(phy) if phy is not None else "")
+        line = "\t".join(data_strs) + "\n"
         self._save_file.write(line)
         self._save_file.flush()
     
     def get_latest_data(self):
-        """Get latest data - called from JavaScript."""
+        """Get latest physical data - called from JavaScript."""
         with self._lock:
             if not self.latest_data:
                 return {"error": "No data available"}
             return {
                 "time": self.latest_data["time"].strftime("%Y/%m/%d %H:%M:%S"),
-                "data": self.latest_data["data"]
+                "data": self.latest_data["physical"]
             }
+    
+    def get_calibration(self):
+        """Get current calibration coefficients - called from JavaScript."""
+        return self.calibration.to_dict()
+    
+    def set_calibration(self, values: dict):
+        """Update calibration coefficients - called from JavaScript."""
+        try:
+            self.calibration.set_from_dict(values)
+            return {"success": True}
+        except Exception as e:
+            return {"error": str(e)}
     
     def start_saving(self, filepath: str):
         """Start saving data to a file - called from JavaScript."""
@@ -323,8 +351,11 @@ if __name__ == "__main__":
     HOST = "192.168.100.100"
     PORT = 4242
     
+    # Load calibration configuration
+    calibration = CalibrationStore()
+    
     # Create API instance
-    api = TDS530Api()
+    api = TDS530Api(calibration)
     
     # Create data collector
     collector = TDS530DataCollector(HOST, PORT, recv_callback=api.update_data)

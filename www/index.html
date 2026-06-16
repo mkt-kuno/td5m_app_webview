@@ -24,6 +24,7 @@
                 Connecting...
             </span>
             <div class="flex items-center gap-3 ml-auto">
+                <button id="calibBtn" class="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700">Calibration</button>
                 <button id="startSaveBtn" class="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">保存開始</button>
                 <button id="stopSaveBtn" class="px-4 py-2 rounded-md bg-gray-600 text-white hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" disabled>保存終了</button>
                 <span id="saveStatus" class="text-sm text-gray-600">未保存</span>
@@ -36,6 +37,26 @@
         </div>
     </div>
 
+    <!-- Calibration Modal -->
+    <div id="calibModal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center">
+        <div class="bg-white rounded-lg shadow-xl w-[720px] max-w-[95vw] max-h-[90vh] flex flex-col">
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <h2 class="text-xl font-bold text-gray-800">Calibration</h2>
+                <button id="closeCalibBtn" class="text-gray-500 hover:text-gray-700 text-2xl leading-none">&times;</button>
+            </div>
+            <div class="p-6 overflow-auto">
+                <p class="text-sm text-gray-600 mb-4">物理値 = a &times; Raw<sup>2</sup> + b &times; Raw + c</p>
+                <div id="calibForm" class="space-y-3">
+                    <!-- Calibration rows will be inserted here -->
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3">
+                <span id="calibStatus" class="text-sm text-gray-600"></span>
+                <button id="saveCalibBtn" class="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700">保存</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const blocksContainer = document.getElementById('blocksContainer');
         const timestampEl = document.getElementById('timestamp');
@@ -43,6 +64,14 @@
         const startSaveBtn = document.getElementById('startSaveBtn');
         const stopSaveBtn = document.getElementById('stopSaveBtn');
         const saveStatusEl = document.getElementById('saveStatus');
+        const calibBtn = document.getElementById('calibBtn');
+        const calibModal = document.getElementById('calibModal');
+        const closeCalibBtn = document.getElementById('closeCalibBtn');
+        const saveCalibBtn = document.getElementById('saveCalibBtn');
+        const calibForm = document.getElementById('calibForm');
+        const calibStatus = document.getElementById('calibStatus');
+
+        const CALIB_GROUPS = ['Z', 'X', 'Disp', 'AUX0', 'AUX1', 'AUX2', 'AUX3', 'AUX4'];
 
         // Fetch/sync state
         let lastTime = null;
@@ -428,6 +457,73 @@
             }
         }
 
+        // Calibration panel
+        function renderCalibForm(values) {
+            calibForm.innerHTML = '';
+            CALIB_GROUPS.forEach(key => {
+                const coeffs = values[key] || { a: 0, b: 1, c: 0 };
+                const row = document.createElement('div');
+                row.className = 'grid grid-cols-[80px_1fr_1fr_1fr] gap-2 items-center';
+                row.innerHTML = `
+                    <div class="font-semibold text-gray-700">${key}</div>
+                    <div>
+                        <label class="block text-xs text-gray-500">a</label>
+                        <input type="number" step="any" id="calib-${key}-a" value="${coeffs.a}" class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">b</label>
+                        <input type="number" step="any" id="calib-${key}-b" value="${coeffs.b}" class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">c</label>
+                        <input type="number" step="any" id="calib-${key}-c" value="${coeffs.c}" class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+                    </div>
+                `;
+                calibForm.appendChild(row);
+            });
+        }
+
+        async function openCalibModal() {
+            calibStatus.textContent = '';
+            calibModal.classList.remove('hidden');
+            calibModal.classList.add('flex');
+            try {
+                const values = await pywebview.api.get_calibration();
+                renderCalibForm(values);
+            } catch (e) {
+                console.error('[openCalibModal] error:', e);
+                calibStatus.textContent = '読み込みエラー';
+            }
+        }
+
+        function closeCalibModal() {
+            calibModal.classList.add('hidden');
+            calibModal.classList.remove('flex');
+        }
+
+        async function saveCalibration() {
+            const values = {};
+            CALIB_GROUPS.forEach(key => {
+                values[key] = {
+                    a: parseFloat(document.getElementById(`calib-${key}-a`).value) || 0,
+                    b: parseFloat(document.getElementById(`calib-${key}-b`).value) || 0,
+                    c: parseFloat(document.getElementById(`calib-${key}-c`).value) || 0,
+                };
+            });
+            try {
+                const result = await pywebview.api.set_calibration(values);
+                if (result.error) {
+                    calibStatus.textContent = '保存エラー: ' + result.error;
+                } else {
+                    calibStatus.textContent = '保存しました';
+                    setTimeout(closeCalibModal, 500);
+                }
+            } catch (e) {
+                console.error('[saveCalibration] error:', e);
+                calibStatus.textContent = '保存エラー';
+            }
+        }
+
         window.addEventListener('pywebviewready', function() {
             if (typeof pywebview === 'undefined' || typeof pywebview.api === 'undefined') {
                 console.error('pywebview API is not available');
@@ -439,6 +535,12 @@
 
             startSaveBtn.addEventListener('click', () => { startSaving(); });
             stopSaveBtn.addEventListener('click', () => { stopSaving(); });
+            calibBtn.addEventListener('click', () => { openCalibModal(); });
+            closeCalibBtn.addEventListener('click', () => { closeCalibModal(); });
+            saveCalibBtn.addEventListener('click', () => { saveCalibration(); });
+            calibModal.addEventListener('click', (e) => {
+                if (e.target === calibModal) closeCalibModal();
+            });
 
             fetchData();
             setInterval(fetchData, 500);
