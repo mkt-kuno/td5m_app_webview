@@ -268,14 +268,14 @@
             for (let col = 0; col < 4; col++) {
                 const ch = baseCh + col * 2; // 0,2,4,6
                 if (ch <= endCh) {
-                    loadcellArea.appendChild(createChannelCell(ch, `${formatChannelLabel(ch)} Z`, 'text-[10px]', 'border-blue-200', 'bg-blue-50/50', 'h-36', true));
+                    loadcellArea.appendChild(createChannelCell(ch, `${formatChannelLabel(ch)} Z`, 'text-[10px]', 'border-blue-200', 'bg-blue-50/50', 'h-48', true));
                 }
             }
             // Bottom row: X directions
             for (let col = 0; col < 4; col++) {
                 const ch = baseCh + col * 2 + 1; // 1,3,5,7
                 if (ch <= endCh) {
-                    loadcellArea.appendChild(createChannelCell(ch, `${formatChannelLabel(ch)} X`, 'text-[10px]', 'border-orange-200', 'bg-orange-50/50', 'h-36', true));
+                    loadcellArea.appendChild(createChannelCell(ch, `${formatChannelLabel(ch)} X`, 'text-[10px]', 'border-orange-200', 'bg-orange-50/50', 'h-48', true));
                 }
             }
 
