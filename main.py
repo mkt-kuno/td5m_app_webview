@@ -333,8 +333,8 @@ if __name__ == "__main__":
         'TrapDoor 5-Axis Motor Logger',
         'www/index.html',
         js_api=api,
-        width=1200,
-        height=800)
+        width=1900,
+        height=1000)
 
     # Start data collector when window is ready
     def on_loaded():

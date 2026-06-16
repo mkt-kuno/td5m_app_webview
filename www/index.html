@@ -10,10 +10,10 @@
         .val-shadow { text-shadow: 0 0 4px rgba(255,255,255,0.8), 0 0 4px rgba(255,255,255,0.8), 0 0 4px rgba(255,255,255,0.8); }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen px-6 py-4">
-    <div class="max-w-[1800px] mx-auto">
-        <!-- Header Bar: Title + Timestamp + Status + Controls in one row -->
-        <div class="bg-white rounded-lg shadow-md px-6 py-3 mb-3 flex items-center gap-6 flex-wrap">
+<body class="bg-gray-100 min-h-screen px-4 py-3">
+    <div class="max-w-[1900px] mx-auto h-[calc(100vh-1.5rem)] flex flex-col">
+        <!-- Header Bar -->
+        <div class="bg-white rounded-lg shadow-md px-6 py-3 mb-3 flex items-center gap-6 flex-wrap shrink-0">
             <h1 class="text-2xl font-bold text-gray-800 whitespace-nowrap">TDS530 Data Monitor</h1>
             <div class="flex items-center gap-2">
                 <span class="text-sm text-gray-500">Last Update:</span>
@@ -30,14 +30,14 @@
             </div>
         </div>
 
-        <!-- Data Cards Grid -->
-        <div id="dataContainer" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-10 gap-3">
-            <!-- Cards will be inserted here dynamically -->
+        <!-- Blocks Container -->
+        <div id="blocksContainer" class="flex-1 grid grid-cols-5 gap-3 items-start content-start overflow-auto min-h-0">
+            <!-- Blocks will be inserted here dynamically -->
         </div>
     </div>
 
     <script>
-        const dataContainer = document.getElementById('dataContainer');
+        const blocksContainer = document.getElementById('blocksContainer');
         const timestampEl = document.getElementById('timestamp');
         const statusEl = document.getElementById('status');
         const startSaveBtn = document.getElementById('startSaveBtn');
@@ -52,11 +52,13 @@
 
         // Chart state
         const FIFO_SIZE = 64;
-        const CHART_BLUE   = 'rgba(37, 99, 235, 0.25)';
-        const CHART_ORANGE = 'rgba(234, 88, 12, 0.25)';
+        const CHART_BLUE   = 'rgba(37, 99, 235, 0.35)';
+        const CHART_ORANGE = 'rgba(234, 88, 12, 0.35)';
         let channelCharts = {};
         let channelCount  = 0;
         let tickCounter   = 0;
+
+        const GRBL_AXES = ['X', 'Y', 'Z', 'A', 'B'];
 
         function chartColorForValue(value) {
             return value >= 0 ? CHART_BLUE : CHART_ORANGE;
@@ -90,14 +92,14 @@
             return `CH${String(index).padStart(3, '0')}`;
         }
 
-        function formatValue(value) {
+        function formatValue(value, maxTotalLen = 8) {
             if (value === null || value === undefined || value === 'None') {
                 return 'None';
             }
             const sign = value >= 0 ? '+' : '-';
             const absVal = Math.abs(value);
             const intStr = Math.floor(absVal).toString();
-            const maxNumLen = 7; // 8 total - 1 for sign
+            const maxNumLen = maxTotalLen - 1; // reserve 1 for sign
             if (intStr.length >= maxNumLen) {
                 return sign + intStr.substring(0, maxNumLen);
             }
@@ -115,99 +117,189 @@
             return sign + formatted;
         }
 
-        function createCards(count) {
-            // Destroy existing charts to free memory
-            Object.values(channelCharts).forEach(c => c.destroy());
-            channelCharts = {};
-            dataContainer.innerHTML = '';
-            channelCount = count;
-            tickCounter  = 0;
-
-            for (let i = 0; i < count; i++) {
-                const card = document.createElement('div');
-                card.className = 'bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 relative overflow-hidden h-[165px]';
-
-                // Chart background container (fills card, behind text)
-                const chartWrap = document.createElement('div');
-                chartWrap.style.cssText = 'position:absolute;inset:0;pointer-events:none;';
-                const canvas = document.createElement('canvas');
-                chartWrap.appendChild(canvas);
-                card.appendChild(chartWrap);
-
-                // Text overlay (on top of chart)
-                const content = document.createElement('div');
-                content.className = 'relative z-10 px-2 py-1 h-full flex flex-col justify-between pointer-events-none select-none';
-                content.innerHTML = `
-                    <div class="text-xl font-semibold text-gray-500">${formatChannelLabel(i)}</div>
-                    <div id="val-${i}" class="val-shadow text-3xl font-bold font-mono leading-none text-right" style="color:rgba(0,0,0,0.05)">None</div>
-                `;
-                card.appendChild(content);
-
-                dataContainer.appendChild(card);
-
-                // Create Chart.js instance
-                try { channelCharts[i] = new Chart(canvas.getContext('2d'), {
-                    type: 'line',
-                    data: {
-                        labels: [],
-                        datasets: [{
-                            data: [],
-                            borderColor: CHART_BLUE,
-                            borderWidth: 2,
-                            pointRadius: 0,
-                            fill: false,
-                            tension: 0.2,
-                            spanGaps: false
-                        }]
+        function initChart(canvas) {
+            return new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        borderColor: CHART_BLUE,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: false,
+                        tension: 0.2,
+                        spanGaps: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: {
+                        legend:  { display: false },
+                        tooltip: { enabled: false }
                     },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        animation: false,
-                        plugins: {
-                            legend:  { display: false },
-                            tooltip: { enabled: false }
-                        },
-                        scales: {
-                            x: { display: false },
-                            y: {
+                    scales: {
+                        x: { display: false },
+                        y: {
+                            display: true,
+                            ticks:  { display: false },
+                            border: { display: false },
+                            afterDataLimits(scale) {
+                                const dataRange = (scale.max - scale.min) || 1;
+                                scale.max = Math.max(scale.max, 0);
+                                scale.min = Math.min(scale.min, 0);
+                                scale.max += dataRange * 0.05;
+                                scale.min -= dataRange * 0.05;
+                            },
+                            grid: {
                                 display: true,
-                                ticks:  { display: false },
-                                border: { display: false },
-                                afterDataLimits(scale) {
-                                    const dataRange = (scale.max - scale.min) || 1;
-                                    scale.max = Math.max(scale.max, 0);
-                                    scale.min = Math.min(scale.min, 0);
-                                    scale.max += dataRange * 0.05;
-                                    scale.min -= dataRange * 0.05;
-                                },
-                                grid: {
-                                    display: true,
-                                    color: function(context) {
-                                        return context.tick.value === 0 ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.03)';
-                                    }
+                                color: function(context) {
+                                    return context.tick.value === 0 ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.03)';
                                 }
                             }
                         }
                     }
-                }); } catch (e) { console.error(`[createCards] Chart init error for CH${i}:`, e); }
+                }
+            });
+        }
+
+        function createChannelCell(ch, labelText, valueSizeClass, borderColorClass, bgColorClass, extraClasses = '', compact = false) {
+            const cell = document.createElement('div');
+            cell.className = `relative overflow-hidden rounded border ${borderColorClass} ${bgColorClass} ${extraClasses}`;
+
+            const canvas = document.createElement('canvas');
+            canvas.style.cssText = 'position:absolute;inset:0;pointer-events:none;';
+            cell.appendChild(canvas);
+
+            const content = document.createElement('div');
+            content.className = 'relative z-10 px-1 py-0.5 h-full flex flex-col justify-between pointer-events-none select-none';
+            content.innerHTML = `
+                <div class="text-[10px] font-semibold text-gray-500 leading-tight">${labelText}</div>
+                <div id="val-${ch}" class="val-shadow ${valueSizeClass} font-bold font-mono leading-none text-right" style="color:rgba(0,0,0,0.05)">None</div>
+            `;
+            cell.appendChild(content);
+
+            // Store formatter preference on the value element
+            const valEl = content.querySelector(`#val-${ch}`);
+            if (valEl) {
+                valEl.dataset.compact = compact ? '1' : '0';
+            }
+
+            try {
+                channelCharts[ch] = initChart(canvas);
+            } catch (e) {
+                console.error(`[createChannelCell] Chart init error for CH${ch}:`, e);
+            }
+
+            return cell;
+        }
+
+        function createBlock(blockIndex, totalChannels) {
+            const baseCh = blockIndex * 10;
+            const axis = GRBL_AXES[blockIndex] || '';
+            const startCh = baseCh;
+            const endCh = Math.min(baseCh + 9, totalChannels - 1);
+
+            const block = document.createElement('div');
+            block.className = 'bg-white rounded-lg shadow-md p-2 flex flex-col min-h-0';
+
+            // Header
+            const header = document.createElement('div');
+            header.className = 'flex items-center justify-between mb-2 shrink-0';
+            header.innerHTML = `
+                <div class="font-bold text-gray-700">Block ${blockIndex} <span class="text-sm text-gray-500">(${axis}軸)</span></div>
+                <div class="text-xs text-gray-400">${formatChannelLabel(startCh)}-${formatChannelLabel(endCh)}</div>
+            `;
+            block.appendChild(header);
+
+            // Body grid: loadcell area + aux column, displacement below
+            const body = document.createElement('div');
+            body.className = 'grid grid-cols-[1fr_70px] grid-rows-[auto_auto] gap-2';
+
+            // Load cell area with buffer walls
+            const loadcellArea = document.createElement('div');
+            loadcellArea.className = 'row-span-1 col-span-1 grid grid-cols-[6px_1fr_6px] gap-1 bg-gray-50 rounded border border-gray-200 p-1';
+
+            const leftWall = document.createElement('div');
+            leftWall.className = 'bg-gray-300 rounded';
+            loadcellArea.appendChild(leftWall);
+
+            const grid = document.createElement('div');
+            grid.className = 'grid grid-cols-4 grid-rows-2 gap-1';
+
+            // Top row: Z directions
+            for (let col = 0; col < 4; col++) {
+                const ch = baseCh + col * 2; // 0,2,4,6
+                if (ch <= endCh) {
+                    grid.appendChild(createChannelCell(ch, `${formatChannelLabel(ch)} Z`, 'text-[10px]', 'border-blue-200', 'bg-blue-50/50', 'h-28', true));
+                }
+            }
+            // Bottom row: X directions
+            for (let col = 0; col < 4; col++) {
+                const ch = baseCh + col * 2 + 1; // 1,3,5,7
+                if (ch <= endCh) {
+                    grid.appendChild(createChannelCell(ch, `${formatChannelLabel(ch)} X`, 'text-[10px]', 'border-orange-200', 'bg-orange-50/50', 'h-28', true));
+                }
+            }
+            loadcellArea.appendChild(grid);
+
+            const rightWall = document.createElement('div');
+            rightWall.className = 'bg-gray-300 rounded';
+            loadcellArea.appendChild(rightWall);
+
+            body.appendChild(loadcellArea);
+
+            // AUX (right column)
+            const auxCh = baseCh + 9;
+            if (auxCh <= endCh) {
+                const auxCell = createChannelCell(auxCh, `AUX ${formatChannelLabel(auxCh)}`, 'text-xs', 'border-purple-200', 'bg-purple-50/50', 'h-full', true);
+                body.appendChild(auxCell);
+            } else {
+                const spacer = document.createElement('div');
+                body.appendChild(spacer);
+            }
+
+            // Displacement (bottom, spans both columns)
+            const dispCh = baseCh + 8;
+            if (dispCh <= endCh) {
+                const dispCell = createChannelCell(dispCh, `変位 ${formatChannelLabel(dispCh)}`, 'text-2xl', 'border-green-200', 'bg-green-50/50', 'h-20');
+                dispCell.classList.add('col-span-2');
+                body.appendChild(dispCell);
+            }
+
+            block.appendChild(body);
+            return block;
+        }
+
+        function createBlocks(count) {
+            // Destroy existing charts
+            Object.values(channelCharts).forEach(c => c.destroy());
+            channelCharts = {};
+            blocksContainer.innerHTML = '';
+            channelCount = count;
+            tickCounter  = 0;
+
+            const blockCount = Math.ceil(count / 10);
+            for (let b = 0; b < blockCount; b++) {
+                blocksContainer.appendChild(createBlock(b, count));
             }
         }
 
-        function updateCards(data) {
+        function updateChannels(data) {
             tickCounter++;
             for (let i = 0; i < data.length; i++) {
                 const value  = data[i];
                 const isNull = value === null || value === undefined || value === 'None';
 
-                // Update value display
                 const valEl = document.getElementById(`val-${i}`);
                 if (valEl) {
                     valEl.style.color = isNull ? 'rgba(0,0,0,0.05)' : textColorForValue(value);
-                    valEl.textContent = formatValue(value);
+                    const maxLen = valEl.dataset.compact === '1' ? 6 : 8;
+                    valEl.textContent = formatValue(value, maxLen);
                 }
 
-                // Update chart buffer (skip null values)
                 if (!isNull) {
                     const chart = channelCharts[i];
                     if (chart) {
@@ -245,38 +337,33 @@
         }
 
         function renderData(data, time) {
-            // Update timestamp
             timestampEl.textContent = time;
 
-            // (Re)create cards only when channel count changes
             if (data.length !== channelCount) {
-                createCards(data.length);
+                createBlocks(data.length);
             }
 
-            updateCards(data);
+            updateChannels(data);
         }
 
         async function fetchData() {
             if (isFetching) return;
             isFetching = true;
             try {
-                // Use pywebview's JavaScript API to call Python method
                 const jsonData = await pywebview.api.get_latest_data();
-                
+
                 if (jsonData.error) {
                     updateStatus(false, jsonData.error);
                     return;
                 }
-                
+
                 if (jsonData.data && jsonData.time) {
-                    // Only update UI when time changes
                     if (jsonData.time !== lastTime) {
                         lastTime = jsonData.time;
                         renderData(jsonData.data, jsonData.time);
                     }
                     updateStatus(true);
-                    
-                    // Update save status if saving
+
                     if (isSaving) {
                         saveStatusEl.textContent = `保存中: ${jsonData.data.length}ch / 最新 ${jsonData.time}`;
                     }
@@ -293,34 +380,32 @@
 
         async function startSaving() {
             if (isSaving) return;
-            
+
             startSaveBtn.disabled = true;
             saveStatusEl.textContent = '保存先を選択…';
-            
+
             try {
-                // Use pywebview's file dialog
                 const result = await pywebview.api.select_save_file();
-                
+
                 if (result.cancelled) {
                     startSaveBtn.disabled = false;
                     saveStatusEl.textContent = '未保存';
                     return;
                 }
-                
-                // Start saving on Python side
+
                 const saveResult = await pywebview.api.start_saving(result.filepath);
-                
+
                 if (saveResult.error) {
                     startSaveBtn.disabled = false;
                     saveStatusEl.textContent = 'エラー: ' + saveResult.error;
                     return;
                 }
-                
+
                 isSaving = true;
                 startSaveBtn.disabled = true;
                 stopSaveBtn.disabled = false;
                 saveStatusEl.textContent = '保存中（TSV）';
-                
+
             } catch (e) {
                 console.error('[startSaving] error:', e);
                 startSaveBtn.disabled = false;
@@ -330,7 +415,7 @@
 
         async function stopSaving() {
             if (!isSaving) return;
-            
+
             try {
                 await pywebview.api.stop_saving();
                 isSaving = false;
@@ -343,23 +428,19 @@
             }
         }
 
-        // Wait for pywebview API to be ready
         window.addEventListener('pywebviewready', function() {
-            // Verify API is available
             if (typeof pywebview === 'undefined' || typeof pywebview.api === 'undefined') {
                 console.error('pywebview API is not available');
                 updateStatus(false, 'API not available');
                 return;
             }
-            
+
             console.log('pywebview API is ready');
-            
+
             startSaveBtn.addEventListener('click', () => { startSaving(); });
             stopSaveBtn.addEventListener('click', () => { stopSaving(); });
 
-            // Initial fetch
             fetchData();
-            // Poll every 500ms
             setInterval(fetchData, 500);
         });
     </script>
