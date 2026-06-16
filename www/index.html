@@ -188,7 +188,7 @@
             });
         }
 
-        function createChannelCell(ch, labelText, valueSizeClass, borderColorClass, bgColorClass, extraClasses = '', compact = false, labelSizeClass = 'text-xs') {
+        function createChannelCell(ch, labelText, rawSizeClass, phySizeClass, borderColorClass, bgColorClass, extraClasses = '', compact = false, labelSizeClass = 'text-xs') {
             const cell = document.createElement('div');
             cell.className = `relative overflow-hidden rounded border ${borderColorClass} ${bgColorClass} ${extraClasses}`;
 
@@ -200,14 +200,17 @@
             content.className = 'relative z-10 px-1.5 py-1 h-full flex flex-col justify-between pointer-events-none select-none';
             content.innerHTML = `
                 <div class="${labelSizeClass} font-semibold text-gray-500 leading-tight">${labelText}</div>
-                <div id="val-${ch}" class="val-shadow ${valueSizeClass} font-bold font-mono leading-none text-right" style="color:rgba(0,0,0,0.05)">None</div>
+                <div class="flex flex-col items-end leading-none">
+                    <div id="val-raw-${ch}" class="val-shadow ${rawSizeClass} font-bold font-mono text-right" style="color:rgba(0,0,0,0.05)">None</div>
+                    <div id="val-phy-${ch}" class="val-shadow ${phySizeClass} font-bold font-mono text-right text-gray-500" style="color:rgba(0,0,0,0.05)">None</div>
+                </div>
             `;
             cell.appendChild(content);
 
-            // Store formatter preference on the value element
-            const valEl = content.querySelector(`#val-${ch}`);
-            if (valEl) {
-                valEl.dataset.compact = compact ? '1' : '0';
+            // Store formatter preference on the raw value element
+            const rawEl = content.querySelector(`#val-raw-${ch}`);
+            if (rawEl) {
+                rawEl.dataset.compact = compact ? '1' : '0';
             }
 
             try {
@@ -249,14 +252,14 @@
             for (let col = 0; col < 4; col++) {
                 const ch = baseCh + col * 2; // 0,2,4,6
                 if (ch <= endCh) {
-                    loadcellArea.appendChild(createChannelCell(ch, `${formatChannelLabel(ch)} Z`, 'text-sm', 'border-blue-200', 'bg-blue-50/50', 'h-48', true));
+                    loadcellArea.appendChild(createChannelCell(ch, `${formatChannelLabel(ch)} Z`, 'text-sm', 'text-xs', 'border-blue-200', 'bg-blue-50/50', 'h-48', true));
                 }
             }
             // Bottom row: X directions
             for (let col = 0; col < 4; col++) {
                 const ch = baseCh + col * 2 + 1; // 1,3,5,7
                 if (ch <= endCh) {
-                    loadcellArea.appendChild(createChannelCell(ch, `${formatChannelLabel(ch)} X`, 'text-sm', 'border-orange-200', 'bg-orange-50/50', 'h-48', true));
+                    loadcellArea.appendChild(createChannelCell(ch, `${formatChannelLabel(ch)} X`, 'text-sm', 'text-xs', 'border-orange-200', 'bg-orange-50/50', 'h-48', true));
                 }
             }
 
@@ -268,13 +271,13 @@
 
             const dispCh = baseCh + 8;
             if (dispCh <= endCh) {
-                const dispCell = createChannelCell(dispCh, `変位 ${formatChannelLabel(dispCh)}`, 'text-2xl', 'border-green-200', 'bg-green-50/50', 'h-48', false, 'text-base');
+                const dispCell = createChannelCell(dispCh, `変位 ${formatChannelLabel(dispCh)}`, 'text-2xl', 'text-xl', 'border-green-200', 'bg-green-50/50', 'h-56', false, 'text-base');
                 bottomRow.appendChild(dispCell);
             }
 
             const auxCh = baseCh + 9;
             if (auxCh <= endCh) {
-                const auxCell = createChannelCell(auxCh, `AUX ${formatChannelLabel(auxCh)}`, 'text-sm', 'border-purple-200', 'bg-purple-50/50', 'h-48', true, 'text-sm');
+                const auxCell = createChannelCell(auxCh, `AUX ${formatChannelLabel(auxCh)}`, 'text-sm', 'text-xs', 'border-purple-200', 'bg-purple-50/50', 'h-48', true, 'text-sm');
                 bottomRow.appendChild(auxCell);
             }
 
@@ -298,31 +301,37 @@
             }
         }
 
-        function updateChannels(data) {
+        function updateValueElement(el, value) {
+            if (!el) return;
+            const isNull = value === null || value === undefined || value === 'None';
+            el.style.color = isNull ? 'rgba(0,0,0,0.05)' : textColorForValue(value);
+            const maxLen = el.dataset.compact === '1' ? 6 : 8;
+            el.textContent = formatValue(value, maxLen);
+        }
+
+        function updateChannels(rawData, physicalData) {
             tickCounter++;
-            for (let i = 0; i < data.length; i++) {
-                const value  = data[i];
-                const isNull = value === null || value === undefined || value === 'None';
+            for (let i = 0; i < rawData.length; i++) {
+                const rawValue = rawData[i];
+                const phyValue = physicalData[i];
+                const isNull = rawValue === null || rawValue === undefined || rawValue === 'None';
 
-                const valEl = document.getElementById(`val-${i}`);
-                if (valEl) {
-                    valEl.style.color = isNull ? 'rgba(0,0,0,0.05)' : textColorForValue(value);
-                    const maxLen = valEl.dataset.compact === '1' ? 6 : 8;
-                    valEl.textContent = formatValue(value, maxLen);
-                }
+                updateValueElement(document.getElementById(`val-raw-${i}`), rawValue);
+                updateValueElement(document.getElementById(`val-phy-${i}`), phyValue);
 
+                // Chart is based on raw values
                 if (!isNull) {
                     const chart = channelCharts[i];
                     if (chart) {
                         const labels  = chart.data.labels;
                         const dataset = chart.data.datasets[0];
                         labels.push(tickCounter);
-                        dataset.data.push(value);
+                        dataset.data.push(rawValue);
                         if (labels.length > FIFO_SIZE) {
                             labels.shift();
                             dataset.data.shift();
                         }
-                        dataset.borderColor = chartColorForValue(value);
+                        dataset.borderColor = chartColorForValue(rawValue);
                         chart.update('none');
                     }
                 }
@@ -339,22 +348,19 @@
                     chart.data.datasets[0].borderColor = CHART_BLUE;
                     chart.update('none');
                 }
-                const valEl = document.getElementById(`val-${i}`);
-                if (valEl) {
-                    valEl.style.color = 'rgba(0,0,0,0.05)';
-                    valEl.textContent = 'None';
-                }
+                updateValueElement(document.getElementById(`val-raw-${i}`), null);
+                updateValueElement(document.getElementById(`val-phy-${i}`), null);
             }
         }
 
-        function renderData(physicalData, time) {
+        function renderData(rawData, physicalData, time) {
             timestampEl.textContent = time;
 
-            if (physicalData.length !== channelCount) {
-                createBlocks(physicalData.length);
+            if (rawData.length !== channelCount) {
+                createBlocks(rawData.length);
             }
 
-            updateChannels(physicalData);
+            updateChannels(rawData, physicalData);
         }
 
         async function fetchData() {
@@ -368,15 +374,15 @@
                     return;
                 }
 
-                if (jsonData.physical && jsonData.time) {
+                if (jsonData.raw && jsonData.physical && jsonData.time) {
                     if (jsonData.time !== lastTime) {
                         lastTime = jsonData.time;
-                        renderData(jsonData.physical, jsonData.time);
+                        renderData(jsonData.raw, jsonData.physical, jsonData.time);
                     }
                     updateStatus(true);
 
                     if (isSaving) {
-                        saveStatusEl.textContent = `保存中: ${jsonData.physical.length}ch / 最新 ${jsonData.time}`;
+                        saveStatusEl.textContent = `保存中: ${jsonData.raw.length}ch / 最新 ${jsonData.time}`;
                     }
                 } else {
                     updateStatus(false, 'Invalid data format');
