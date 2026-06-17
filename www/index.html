@@ -236,7 +236,7 @@
             const header = document.createElement('div');
             header.className = 'flex items-center justify-between mb-2 shrink-0';
             header.innerHTML = `
-                <div class="text-lg font-bold text-gray-700">Block ${blockIndex} <span class="text-sm text-gray-500">/ ${axis} Axis</span></div>
+                <div class="text-lg font-bold text-gray-700">Block ${blockIndex} / ${axis} Axis</div>
                 <div class="text-sm text-gray-400">${formatChannelLabel(startCh)}-${formatChannelLabel(endCh)}</div>
             `;
             block.appendChild(header);
@@ -506,7 +506,7 @@
             grid.className = 'grid grid-cols-5 gap-x-4 gap-y-2';
 
             const groupLabels = {
-                Z: 'Z', X: 'X', Disp: 'Displacement',
+                Z: 'Z', X: 'X', Disp: 'Disp',
                 AUX0: 'AUX0', AUX1: 'AUX1', AUX2: 'AUX2', AUX3: 'AUX3', AUX4: 'AUX4'
             };
 
@@ -539,7 +539,7 @@
         function attachCalibListeners() {
             const btn = document.getElementById('saveCalibBtn');
             if (btn) {
-                btn.addEventListener('click', () => { saveCalibration({ silent: false }); });
+                btn.addEventListener('click', () => { exportCalibration(); });
             }
             CALIB_GROUPS.forEach(key => {
                 ['a', 'b', 'c'].forEach(coef => {
@@ -562,14 +562,7 @@
         const autoSaveCalibration = debounce(() => saveCalibration({ silent: true }), 500);
 
         async function saveCalibration({ silent = false } = {}) {
-            const values = {};
-            CALIB_GROUPS.forEach(key => {
-                values[key] = {
-                    a: parseFloat(document.getElementById(`calib-${key}-a`).value) || 0,
-                    b: parseFloat(document.getElementById(`calib-${key}-b`).value) || 0,
-                    c: parseFloat(document.getElementById(`calib-${key}-c`).value) || 0,
-                };
-            });
+            const values = collectCalibrationValues();
             try {
                 const result = await pywebview.api.set_calibration(values);
                 if (result.error) {
@@ -584,6 +577,46 @@
             } catch (e) {
                 console.error('[saveCalibration] error:', e);
                 calibStatus.textContent = 'Save error';
+            }
+        }
+
+        function formatCalibrationTimestamp(date) {
+            const pad = (value) => String(value).padStart(2, '0');
+            return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}_${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+        }
+
+        function downloadJson(filename, data) {
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            link.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function collectCalibrationValues() {
+            const values = {};
+            CALIB_GROUPS.forEach(key => {
+                values[key] = {
+                    a: parseFloat(document.getElementById(`calib-${key}-a`).value) || 0,
+                    b: parseFloat(document.getElementById(`calib-${key}-b`).value) || 0,
+                    c: parseFloat(document.getElementById(`calib-${key}-c`).value) || 0,
+                };
+            });
+            return values;
+        }
+
+        async function exportCalibration() {
+            try {
+                const values = collectCalibrationValues();
+                await pywebview.api.set_calibration(values);
+                const filename = `${formatCalibrationTimestamp(new Date())}.cal.json`;
+                downloadJson(filename, values);
+                calibStatus.textContent = 'Exported';
+            } catch (e) {
+                console.error('[exportCalibration] error:', e);
+                calibStatus.textContent = 'Export error';
             }
         }
 
