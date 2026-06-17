@@ -366,9 +366,13 @@ if __name__ == "__main__":
     HOST = "192.168.100.100"
     PORT = 4242
     
-    # Load calibration and unit configuration
+    # Load calibration and unit configuration (auto-restore on startup)
     calibration = CalibrationStore()
     units = UnitStore()
+    
+    # Ensure configuration is saved on app exit (auto-store on shutdown)
+    atexit.register(calibration.save)
+    atexit.register(units.save)
     
     # Create API instance
     api = TDS530Api(calibration, units)
