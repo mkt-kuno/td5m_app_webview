@@ -3,8 +3,9 @@ name = "tds530-tcp-logger"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = "==3.11.13"
+requires-python = "==3.13.11"
 dependencies = [
-    "pywebview>=3.2; sys_platform != 'linux'",
-    "pywebview[qt]>=3.2; sys_platform == 'linux'",
+    "pyinstaller>=6.21.0",
+    "pywebview>=6.2.1; sys_platform != 'linux'",
+    "pywebview[qt]>=6.2.1; sys_platform == 'linux'",
 ]
