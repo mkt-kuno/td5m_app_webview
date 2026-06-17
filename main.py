@@ -282,7 +282,7 @@ class TDS530Api:
             self._save_file.write("\t".join(header_parts) + "\n")
             self._header_written = True
 
-        time_str = data["time"].strftime("%Y/%m/%d %H:%M:%S.%f")[:-3]
+        time_str = data["time"].strftime("%Y/%m/%d %H:%M:%S") + ".000"
         data_strs = [time_str]
         for raw in data["raw"]:
             data_strs.append(self._format_raw_value(raw))
