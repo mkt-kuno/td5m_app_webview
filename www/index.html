@@ -74,12 +74,11 @@
         let wasConnected = false;
 
         // Chart state
-        const FIFO_SIZE = 64;
+        const FIFO_SIZE = 64; // チャートに表示する点数
         const CHART_BLUE   = 'rgba(37, 99, 235, 0.35)';
         const CHART_ORANGE = 'rgba(234, 88, 12, 0.35)';
         let channelCharts = {};
         let channelCount  = 0;
-        let tickCounter   = 0;
 
         const GRBL_AXES = ['X', 'Y', 'Z', 'A', 'B'];
 
@@ -141,12 +140,15 @@
         }
 
         function initChart(canvas) {
+            // 右からデータが生えて左へ流れるように、固定幅でnullで埋めた状態で初期化
+            const emptyLabels = new Array(FIFO_SIZE).fill('');
+            const emptyData   = new Array(FIFO_SIZE).fill(null);
             return new Chart(canvas.getContext('2d'), {
                 type: 'line',
                 data: {
-                    labels: [],
+                    labels: emptyLabels,
                     datasets: [{
-                        data: [],
+                        data: emptyData,
                         borderColor: CHART_BLUE,
                         borderWidth: 2,
                         pointRadius: 0,
@@ -301,7 +303,6 @@
             channelCharts = {};
             blocksContainer.innerHTML = '';
             channelCount = count;
-            tickCounter  = 0;
 
             const blockCount = Math.ceil(count / 10);
             for (let b = 0; b < blockCount; b++) {
@@ -336,7 +337,6 @@
         }
 
         function updateChannels(rawData, physicalData) {
-            tickCounter++;
             for (let i = 0; i < rawData.length; i++) {
                 const rawValue = rawData[i];
                 const phyValue = physicalData[i];
@@ -349,14 +349,10 @@
                 if (!isNull) {
                     const chart = channelCharts[i];
                     if (chart) {
-                        const labels  = chart.data.labels;
                         const dataset = chart.data.datasets[0];
-                        labels.push(tickCounter);
+                        // 古いデータを左から追い出し、右端に新しいデータを追加
+                        dataset.data.shift();
                         dataset.data.push(rawValue);
-                        if (labels.length > FIFO_SIZE) {
-                            labels.shift();
-                            dataset.data.shift();
-                        }
                         const chartMode = chart._colorMode || 'sign';
                         if (chartMode === 'green') {
                             dataset.borderColor = 'rgba(22, 163, 74, 0.5)';
@@ -376,12 +372,11 @@
         }
 
         function resetCharts() {
-            tickCounter = 0;
             for (let i = 0; i < channelCount; i++) {
                 const chart = channelCharts[i];
                 if (chart) {
-                    chart.data.labels = [];
-                    chart.data.datasets[0].data        = [];
+                    chart.data.labels = new Array(FIFO_SIZE).fill('');
+                    chart.data.datasets[0].data        = new Array(FIFO_SIZE).fill(null);
                     chart.data.datasets[0].borderColor = CHART_BLUE;
                     chart.update('none');
                 }
