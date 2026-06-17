@@ -1,43 +1,42 @@
-# 5軸落とし戸用ロガーアプリケーション
+# 5-Axis Trapdoor Logger Application
 
-実質的にTDS530用ロガーアプリです。  
-uv を使用して作成されたプロジェクトです。パッケージ管理はuvを使用することを推奨します。  
-次点はcondaです。システムのpipをそのまま使用するのは強い非推奨です。  
-PyWebView ベースのネイティブウィンドウでリアルタイムにTCP経由でTDS530からデータを受信・表示します。  
-ファイル保存機能はUIから制御できます。  
+This is essentially a logger application for the TDS530.  
+It is a project created using `uv`. We recommend using `uv` for package management.  
+`conda` is the next best option. Using the system `pip` directly is strongly discouraged.  
+It receives and displays data from the TDS530 in real time over TCP in a PyWebView-based native window.  
+File saving can be controlled from the UI.
 
-## 実行方法
-1. uv 環境をセットアップし、仮想環境(venv)を有効化します。
-2. 依存関係をインストールします。
-3. `main.py` を実行します。
-4. ネイティブウィンドウが開き、データモニターが表示されます。
-5. 計測終了後は、ウィンドウを閉じてください。
+## How to Run
+1. Set up the `uv` environment and activate the virtual environment (`venv`).
+2. Install the dependencies.
+3. Run `main.py`.
+4. A native window will open and the data monitor will be displayed.
+5. Close the window when measurement is finished.
 
-## デフォルトの接続設定
-- TDS530のIPアドレス: "192.168.100.100"  
-    意味が分かる人のみ変更してください。
-- TDS530のポート番号: 4242  
-    デバイスの都合で変えられません。
+## Default Connection Settings
+- TDS530 IP address: "192.168.100.100"  
+    Change this only if you understand what you are doing.
+- TDS530 port number: 4242  
+    This cannot be changed due to device constraints.
 
+## Connection Method
+- Connect the TDS530 LAN port directly to the computer's wired LAN port with a LAN cable.
+- Be sure to use a crossover cable.
+- If you use a hub, a straight-through cable can also work, but only use a hub if you understand what you are doing.
 
-## 接続方法
-- TDS530のLANポートとパソコンの有線LANポートを直接LANケーブルで接続します。
-- 必ずクロスケーブルを使用してください。
-- ハブを介せばストレートケーブルでも接続可能、だと分かる人のみハブを噛ませてください。
+## TDS530 Settings
+- Set the output destination to "Output to LAN".
+- Set the "IP Address" to "192.168.100.100".
+- Set the "Network Mask" to "255.255.255.0".
+- Set the "Port Number" to "4242".
+- Do not set a "Gateway".
+- If you use a hub, a straight-through cable can also work, but only change these settings freely if you understand what you are doing.
 
-## TDS530の設定
-- 出力先を"LANへ出力"に設定します。
-- "IPアドレス"を"192.168.100.100"に設定します。
-- "ネットワークマスク"を"255.255.255.0"に設定します。
-- "ポート番号"を"4242"に設定します。
-- "ゲートウェイ"は設定しません。
-- ハブを介せばストレートケーブルでも接続可能、だと分かる人のみこの設定を自由に変更してください。
+## Computer Settings
+- Set the computer's wired LAN "IP Address" to "192.168.100.x" (where x is any number from 1 to 254 except 100).
+- Set the computer's wired LAN "Subnet Mask" to "255.255.255.0".
+- Do not set a "Gateway" for the computer's wired LAN.
+- If you use a hub, a straight-through cable can also work, but only change these settings freely if you understand what you are doing.
 
-## パソコンの設定
-- パソコンの有線LANの"IPアドレス"を"192.168.100.1"（xxxは1から254の間の任意の数字で100以外）に設定します。
-- パソコンの有線LANの"サブネットマスク"を"255.255.255.0"に設定します。
-- パソコンの有線LANの"ゲートウェイ"は設定しません。
-- ハブを介せばストレートケーブルでも接続可能、だと分かる人のみこの設定を自由に変更してください。
-
-## 注意事項
-- 依存関係は2025年12月時点ではpywebviewのみだと認識しています。が、Pythonやpywebviewの更新次第ではわかりません。
+## Notes
+- As of December 2025, the only dependency we are aware of is `pywebview`. However, this may change depending on Python or pywebview updates.

@@ -142,7 +142,7 @@ class TDS530DataCollector:
                         except Exception:
                             break
                         if not chunk:
-                            raise ConnectionError("サーバーにより切断されました。")
+                            raise ConnectionError("Disconnected by server.")
                         text_chunk = chunk.decode("utf-8", errors="replace")
                         received_buffer += text_chunk
                         if terminator in received_buffer:
@@ -336,12 +336,12 @@ if __name__ == "__main__":
             import ctypes
             ctypes.windll.user32.MessageBoxW(
                 0,
-                "アプリケーションは既に起動しています。",
+                "The application is already running.",
                 APP_NAME,
                 0x30  # MB_ICONWARNING
             )
         else:
-            print("アプリケーションは既に起動しています。", file=sys.stderr)
+            print("The application is already running.", file=sys.stderr)
         sys.exit(1)
     
     # Register cleanup on exit
