@@ -252,24 +252,42 @@ class TDS530Api:
             # Push the data to the frontend immediately
             self._push_to_js(stored)
     
+    @staticmethod
+    def _format_raw_value(value):
+        """Format raw value like the reference TSV (integer when whole)."""
+        if value is None:
+            return ""
+        if isinstance(value, float) and value.is_integer():
+            return str(int(value))
+        return str(value)
+
+    @staticmethod
+    def _format_phy_value(value):
+        """Format physical value with 3 decimals like the reference TSV."""
+        if value is None:
+            return ""
+        return f"{value:.3f}"
+
     def _write_data_to_file(self, data: dict):
         """Write raw and physical data to TSV file."""
         if self._save_file is None:
             return
-        
+
         if not self._header_written:
-            header_parts = ["Time"]
+            header_parts = ["timestamp"]
             for idx in range(len(data["raw"])):
-                header_parts.append(f"RAW{idx:03}")
-                header_parts.append(f"PHY{idx:03}")
+                header_parts.append(f"ai_raw_{idx:02d}")
+            for idx in range(len(data["physical"])):
+                header_parts.append(f"ai_phy_{idx:02d}")
             self._save_file.write("\t".join(header_parts) + "\n")
             self._header_written = True
-        
-        time_str = data["time"].strftime("%Y/%m/%d %H:%M:%S")
+
+        time_str = data["time"].strftime("%Y/%m/%d %H:%M:%S.%f")[:-3]
         data_strs = [time_str]
-        for raw, phy in zip(data["raw"], data["physical"]):
-            data_strs.append(str(raw) if raw is not None else "")
-            data_strs.append(str(phy) if phy is not None else "")
+        for raw in data["raw"]:
+            data_strs.append(self._format_raw_value(raw))
+        for phy in data["physical"]:
+            data_strs.append(self._format_phy_value(phy))
         line = "\t".join(data_strs) + "\n"
         self._save_file.write(line)
         self._save_file.flush()
