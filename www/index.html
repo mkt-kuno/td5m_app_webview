@@ -559,11 +559,11 @@
                 <div class="font-semibold text-gray-700 text-lg w-14 shrink-0">${displayName}</div>
                 <div class="flex items-center gap-0.5 flex-1">
                     <label class="text-sm text-gray-500">a</label>
-                    <input type="number" step="any" id="calib-${key}-a" value="${coeffs.a}" class="w-20 border border-gray-300 rounded px-2 py-0.5 text-lg">
+                    <input type="number" step="any" id="calib-${key}-a" value="${coeffs.a}" class="w-16 border border-gray-300 rounded px-1 py-0.5 text-lg">
                     <label class="text-sm text-gray-500">b</label>
-                    <input type="number" step="any" id="calib-${key}-b" value="${coeffs.b}" class="w-28 border border-gray-300 rounded px-2 py-0.5 text-lg">
+                    <input type="number" step="any" id="calib-${key}-b" value="${coeffs.b}" class="w-24 border border-gray-300 rounded px-1 py-0.5 text-lg">
                     <label class="text-sm text-gray-500">c</label>
-                    <input type="number" step="any" id="calib-${key}-c" value="${coeffs.c}" class="w-20 border border-gray-300 rounded px-2 py-0.5 text-lg">
+                    <input type="number" step="any" id="calib-${key}-c" value="${coeffs.c}" class="w-16 border border-gray-300 rounded px-1 py-0.5 text-lg">
                 </div>
             `;
             return item;
@@ -572,34 +572,33 @@
         function renderCalibEditor(values) {
             calibSummary.innerHTML = '';
             const grid = document.createElement('div');
-            grid.className = 'grid grid-cols-4 gap-x-4 gap-y-1';
+            grid.className = 'grid grid-cols-5 gap-x-2 gap-y-1';
 
             const groupLabels = {
                 Z: 'Z', X: 'X', Disp: 'Disp',
                 AUX0: 'AUX0', AUX1: 'AUX1', AUX2: 'AUX2', AUX3: 'AUX3', AUX4: 'AUX4'
             };
 
-            // Row 1: title (span 2), formula+export (span 2)
+            // Row 1: title, Z, X, Displacement, formula+export
             const titleItem = document.createElement('div');
-            titleItem.className = 'flex items-center col-span-2';
+            titleItem.className = 'flex items-center';
             titleItem.innerHTML = '<div class="text-2xl font-bold text-gray-800">Calibration</div>';
             grid.appendChild(titleItem);
 
+            ['Z', 'X', 'Disp'].forEach(key => {
+                grid.appendChild(createCalibGroup(key, groupLabels[key], values));
+            });
+
             const formulaItem = document.createElement('div');
-            formulaItem.className = 'flex items-center justify-end gap-3 col-span-2';
+            formulaItem.className = 'flex items-center justify-end gap-3';
             formulaItem.innerHTML = `
                 <div class="text-base text-gray-500">Phy = a×με² + b×με + c</div>
                 <button id="saveCalibBtn" class="px-4 py-2 rounded-md bg-indigo-600 text-white text-base hover:bg-indigo-700">Export</button>
             `;
             grid.appendChild(formulaItem);
 
-            // Row 2: Z, X, Disp, AUX0
-            ['Z', 'X', 'Disp', 'AUX0'].forEach(key => {
-                grid.appendChild(createCalibGroup(key, groupLabels[key], values));
-            });
-
-            // Row 3: AUX1..AUX4
-            ['AUX1', 'AUX2', 'AUX3', 'AUX4'].forEach(key => {
+            // Row 2: AUX0..AUX4
+            ['AUX0', 'AUX1', 'AUX2', 'AUX3', 'AUX4'].forEach(key => {
                 grid.appendChild(createCalibGroup(key, groupLabels[key], values));
             });
 
