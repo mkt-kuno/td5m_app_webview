@@ -424,6 +424,29 @@
             updateChannels(rawData, physicalData);
         }
 
+        function handleLatestData(jsonData) {
+            if (jsonData.raw && jsonData.physical && jsonData.time) {
+                if (jsonData.time !== lastTime) {
+                    lastTime = jsonData.time;
+                    renderData(jsonData.raw, jsonData.physical, jsonData.time);
+                }
+                updateStatus(true);
+
+                if (isSaving) {
+                    saveStatusEl.textContent = `Saving: ${jsonData.raw.length}ch / Latest ${jsonData.time}`;
+                }
+            }
+        }
+
+        // Receives pushed data from Python (push model)
+        window.updateDataFromPython = function(jsonData) {
+            try {
+                handleLatestData(jsonData);
+            } catch (error) {
+                console.error('[updateDataFromPython] error:', error);
+            }
+        };
+
         async function fetchData() {
             if (isFetching) return;
             isFetching = true;
@@ -435,19 +458,7 @@
                     return;
                 }
 
-                if (jsonData.raw && jsonData.physical && jsonData.time) {
-                    if (jsonData.time !== lastTime) {
-                        lastTime = jsonData.time;
-                        renderData(jsonData.raw, jsonData.physical, jsonData.time);
-                    }
-                    updateStatus(true);
-
-                    if (isSaving) {
-                        saveStatusEl.textContent = `Saving: ${jsonData.raw.length}ch / Latest ${jsonData.time}`;
-                    }
-                } else {
-                    updateStatus(false, 'Invalid data format');
-                }
+                handleLatestData(jsonData);
             } catch (error) {
                 console.error('[fetchData] error:', error);
                 updateStatus(false, 'Error: ' + error.message);
@@ -829,7 +840,8 @@
             loadCalibration();
             loadUnits();
             fetchData();
-            setInterval(fetchData, 500);
+            // Fallback/heartbeat poll: push is primary, but poll keeps status fresh
+            setInterval(fetchData, 1000);
         });
     </script>
 </body>
