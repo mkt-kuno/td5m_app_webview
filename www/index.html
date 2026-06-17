@@ -8,6 +8,7 @@
     <script src="chart.min.js"></script>
     <style>
         .val-shadow { text-shadow: 0 0 4px rgba(255,255,255,0.8), 0 0 4px rgba(255,255,255,0.8), 0 0 4px rgba(255,255,255,0.8); }
+        .raw-value::after { content: 'με'; font-size: 0.7em; margin-left: 1px; }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen px-4 py-3">
@@ -40,7 +41,7 @@
             <div class="flex items-center justify-between mb-3">
                 <div class="text-lg font-bold text-gray-800">Calibration</div>
                 <div class="flex items-center gap-3">
-                    <div class="text-sm text-gray-500">物理値 = a × Raw² + b × Raw + c</div>
+                    <div class="text-sm text-gray-500">Phy = a × μStrain² + b × μStrain + c</div>
                     <button id="saveCalibBtn" class="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700">保存</button>
                 </div>
             </div>
@@ -188,7 +189,7 @@
             });
         }
 
-        function createChannelCell(ch, labelText, rawSizeClass, phySizeClass, borderColorClass, bgColorClass, extraClasses = '', compact = false, labelSizeClass = 'text-xs') {
+        function createChannelCell(ch, labelText, rawSizeClass, phySizeClass, borderColorClass, bgColorClass, extraClasses = '', compact = false, labelSizeClass = 'text-xs', colorMode = 'sign') {
             const cell = document.createElement('div');
             cell.className = `relative overflow-hidden rounded border ${borderColorClass} ${bgColorClass} ${extraClasses}`;
 
@@ -201,20 +202,28 @@
             content.innerHTML = `
                 <div class="${labelSizeClass} font-semibold text-gray-500 leading-tight">${labelText}</div>
                 <div class="flex flex-col items-end leading-none">
-                    <div id="val-raw-${ch}" class="val-shadow ${rawSizeClass} font-bold font-mono text-right" style="color:rgba(0,0,0,0.05)">None</div>
-                    <div id="val-phy-${ch}" class="val-shadow ${phySizeClass} font-bold font-mono text-right text-gray-500" style="color:rgba(0,0,0,0.05)">None</div>
+                    <div id="val-raw-${ch}" class="val-shadow raw-value ${rawSizeClass} font-bold font-mono text-right" style="color:rgba(0,0,0,0.05)">None</div>
+                    <div id="val-phy-${ch}" class="val-shadow ${phySizeClass} font-bold font-mono text-right" style="color:rgba(0,0,0,0.05)">None</div>
                 </div>
             `;
             cell.appendChild(content);
 
-            // Store formatter preference on the raw value element
+            // Store formatter and color mode preference on the value elements
             const rawEl = content.querySelector(`#val-raw-${ch}`);
+            const phyEl = content.querySelector(`#val-phy-${ch}`);
             if (rawEl) {
                 rawEl.dataset.compact = compact ? '1' : '0';
+                rawEl.dataset.colorMode = colorMode;
+            }
+            if (phyEl) {
+                phyEl.dataset.compact = compact ? '1' : '0';
+                phyEl.dataset.colorMode = colorMode;
             }
 
             try {
-                channelCharts[ch] = initChart(canvas);
+                const chart = initChart(canvas);
+                chart._colorMode = colorMode;
+                channelCharts[ch] = chart;
             } catch (e) {
                 console.error(`[createChannelCell] Chart init error for CH${ch}:`, e);
             }
@@ -271,13 +280,13 @@
 
             const dispCh = baseCh + 8;
             if (dispCh <= endCh) {
-                const dispCell = createChannelCell(dispCh, `変位 ${formatChannelLabel(dispCh)}`, 'text-2xl', 'text-xl', 'border-green-200', 'bg-green-50/50', 'h-56', false, 'text-base');
+                const dispCell = createChannelCell(dispCh, `変位 ${formatChannelLabel(dispCh)}`, 'text-2xl', 'text-xl', 'border-green-200', 'bg-green-50/50', 'h-56', false, 'text-base', 'green');
                 bottomRow.appendChild(dispCell);
             }
 
             const auxCh = baseCh + 9;
             if (auxCh <= endCh) {
-                const auxCell = createChannelCell(auxCh, `AUX ${formatChannelLabel(auxCh)}`, 'text-sm', 'text-xs', 'border-purple-200', 'bg-purple-50/50', 'h-48', true, 'text-sm');
+                const auxCell = createChannelCell(auxCh, `AUX ${formatChannelLabel(auxCh)}`, 'text-sm', 'text-xs', 'border-purple-200', 'bg-purple-50/50', 'h-48', true, 'text-sm', 'purple');
                 bottomRow.appendChild(auxCell);
             }
 
@@ -304,7 +313,21 @@
         function updateValueElement(el, value) {
             if (!el) return;
             const isNull = value === null || value === undefined || value === 'None';
-            el.style.color = isNull ? 'rgba(0,0,0,0.05)' : textColorForValue(value);
+            const colorMode = el.dataset.colorMode || 'sign';
+            if (isNull) {
+                el.style.color = 'rgba(0,0,0,0.05)';
+                el.textContent = 'None';
+                return;
+            }
+            let color;
+            if (colorMode === 'green') {
+                color = '#16a34a';
+            } else if (colorMode === 'purple') {
+                color = '#9333ea';
+            } else {
+                color = textColorForValue(value);
+            }
+            el.style.color = color;
             const maxLen = el.dataset.compact === '1' ? 6 : 8;
             el.textContent = formatValue(value, maxLen);
         }
@@ -331,7 +354,14 @@
                             labels.shift();
                             dataset.data.shift();
                         }
-                        dataset.borderColor = chartColorForValue(rawValue);
+                        const chartMode = chart._colorMode || 'sign';
+                        if (chartMode === 'green') {
+                            dataset.borderColor = 'rgba(22, 163, 74, 0.5)';
+                        } else if (chartMode === 'purple') {
+                            dataset.borderColor = 'rgba(147, 51, 234, 0.5)';
+                        } else {
+                            dataset.borderColor = chartColorForValue(rawValue);
+                        }
                         chart.update('none');
                     }
                 }
@@ -449,13 +479,14 @@
         function renderCalibEditor(values) {
             calibSummary.innerHTML = '';
             const grid = document.createElement('div');
-            grid.className = 'grid grid-cols-4 gap-x-6 gap-y-3';
+            grid.className = 'grid grid-cols-4 gap-x-6 gap-y-2';
             CALIB_GROUPS.forEach(key => {
                 const coeffs = values[key] || { a: 0, b: 1, c: 0 };
                 const item = document.createElement('div');
+                item.className = 'flex items-end gap-2';
                 item.innerHTML = `
-                    <div class="font-semibold text-gray-700 text-base mb-1">${key}</div>
-                    <div class="grid grid-cols-3 gap-1">
+                    <div class="font-semibold text-gray-700 text-base pb-1 w-10 shrink-0">${key}</div>
+                    <div class="grid grid-cols-3 gap-1 flex-1">
                         <div>
                             <label class="block text-xs text-gray-500">a</label>
                             <input type="number" step="any" id="calib-${key}-a" value="${coeffs.a}" class="w-full border border-gray-300 rounded px-2 py-1 text-base">
