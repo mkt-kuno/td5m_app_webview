@@ -9,6 +9,7 @@ import tempfile
 import atexit
 
 from calibration import CalibrationStore
+from units import UnitStore, UNIT_GROUPS
 
 # Platform-specific imports for file locking
 if sys.platform == "win32":
@@ -199,8 +200,9 @@ class TDS530DataCollector:
 class TDS530Api:
     """API class exposed to JavaScript via pywebview."""
     
-    def __init__(self, calibration: CalibrationStore):
+    def __init__(self, calibration: CalibrationStore, units: UnitStore):
         self.calibration = calibration
+        self.units = units
         self.latest_data: dict = {}
         self._lock = threading.Lock()
         self._save_file = None
@@ -266,6 +268,18 @@ class TDS530Api:
         """Update calibration coefficients - called from JavaScript."""
         try:
             self.calibration.set_from_dict(values)
+            return {"success": True}
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def get_units(self):
+        """Get current unit settings - called from JavaScript."""
+        return self.units.to_dict()
+    
+    def set_units(self, values: dict):
+        """Update unit settings - called from JavaScript."""
+        try:
+            self.units.set_from_dict(values)
             return {"success": True}
         except Exception as e:
             return {"error": str(e)}
@@ -352,11 +366,12 @@ if __name__ == "__main__":
     HOST = "192.168.100.100"
     PORT = 4242
     
-    # Load calibration configuration
+    # Load calibration and unit configuration
     calibration = CalibrationStore()
+    units = UnitStore()
     
     # Create API instance
-    api = TDS530Api(calibration)
+    api = TDS530Api(calibration, units)
     
     # Create data collector
     collector = TDS530DataCollector(HOST, PORT, recv_callback=api.update_data)
