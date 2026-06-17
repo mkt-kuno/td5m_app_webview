@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,7 +7,14 @@
     <script src="tailwind.min.js"></script>
     <script src="chart.min.js"></script>
     <style>
-        .val-shadow { text-shadow: 0 0 4px rgba(255,255,255,0.8), 0 0 4px rgba(255,255,255,0.8), 0 0 4px rgba(255,255,255,0.8); }
+        .val-shadow {
+            text-shadow:
+                -1px -1px 0 rgba(255,255,255,0.95),
+                1px -1px 0 rgba(255,255,255,0.95),
+                -1px 1px 0 rgba(255,255,255,0.95),
+                1px 1px 0 rgba(255,255,255,0.95),
+                0 0 4px rgba(255,255,255,0.95);
+        }
         .raw-value::after { content: 'με'; font-size: 0.7em; margin-left: 1px; }
     </style>
 </head>
