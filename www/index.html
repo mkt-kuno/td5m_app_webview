@@ -286,14 +286,14 @@
             for (let col = 0; col < 4; col++) {
                 const ch = baseCh + col * 2; // 0,2,4,6
                 if (ch <= endCh) {
-                    loadcellArea.appendChild(createChannelCell(ch, `${formatChannelLabel(ch)} Z`, 'text-base', 'text-lg', 'border-blue-200', 'bg-blue-50/50', 'h-48', true, 'text-sm', 'blue'));
+                    loadcellArea.appendChild(createChannelCell(ch, `${formatChannelLabel(ch)} Z`, 'text-base', 'text-lg', 'border-blue-200', 'bg-blue-50/50', 'h-[204px]', true, 'text-sm', 'blue'));
                 }
             }
             // Bottom row: X directions
             for (let col = 0; col < 4; col++) {
                 const ch = baseCh + col * 2 + 1; // 1,3,5,7
                 if (ch <= endCh) {
-                    loadcellArea.appendChild(createChannelCell(ch, `${formatChannelLabel(ch)} X`, 'text-base', 'text-lg', 'border-orange-200', 'bg-orange-50/50', 'h-48', true, 'text-sm', 'orange'));
+                    loadcellArea.appendChild(createChannelCell(ch, `${formatChannelLabel(ch)} X`, 'text-base', 'text-lg', 'border-orange-200', 'bg-orange-50/50', 'h-[204px]', true, 'text-sm', 'orange'));
                 }
             }
 
@@ -305,13 +305,13 @@
 
             const dispCh = baseCh + 8;
             if (dispCh <= endCh) {
-                const dispCell = createChannelCell(dispCh, `Disp ${formatChannelLabel(dispCh)}`, 'text-3xl', 'text-4xl', 'border-green-200', 'bg-green-50/50', 'h-48', false, 'text-lg', 'green');
+                const dispCell = createChannelCell(dispCh, `Disp ${formatChannelLabel(dispCh)}`, 'text-3xl', 'text-4xl', 'border-green-200', 'bg-green-50/50', 'h-[204px]', false, 'text-lg', 'green');
                 bottomRow.appendChild(dispCell);
             }
 
             const auxCh = baseCh + 9;
             if (auxCh <= endCh) {
-                const auxCell = createChannelCell(auxCh, `AUX ${formatChannelLabel(auxCh)}`, 'text-base', 'text-lg', 'border-purple-200', 'bg-purple-50/50', 'h-48', true, 'text-base', 'purple');
+                const auxCell = createChannelCell(auxCh, `AUX ${formatChannelLabel(auxCh)}`, 'text-base', 'text-lg', 'border-purple-200', 'bg-purple-50/50', 'h-[204px]', true, 'text-base', 'purple');
                 bottomRow.appendChild(auxCell);
             }
 
@@ -505,6 +505,8 @@
                 isSaving = true;
                 updateToggleSaveButton();
                 saveStatusEl.textContent = 'Saving (TSV)';
+                setCalibrationEditable(false);
+                setUnitsEditable(false);
 
             } catch (e) {
                 console.error('[startSaving] error:', e);
@@ -522,10 +524,30 @@
                 isSaving = false;
                 updateToggleSaveButton();
                 saveStatusEl.textContent = 'Save complete (TSV)';
+                setCalibrationEditable(true);
+                setUnitsEditable(true);
             } catch (e) {
                 console.error('[stopSaving] error:', e);
                 saveStatusEl.textContent = 'Save error';
             }
+        }
+
+        function setCalibrationEditable(editable) {
+            CALIB_GROUPS.forEach(key => {
+                ['a', 'b', 'c'].forEach(coef => {
+                    const input = document.getElementById(`calib-${key}-${coef}`);
+                    if (input) input.disabled = !editable;
+                });
+            });
+            const exportBtn = document.getElementById('saveCalibBtn');
+            if (exportBtn) exportBtn.disabled = !editable;
+        }
+
+        function setUnitsEditable(editable) {
+            UNIT_GROUPS.forEach(key => {
+                const input = document.getElementById(`unit-${key}`);
+                if (input && !FIXED_UNITS[key]) input.disabled = !editable;
+            });
         }
 
         // Calibration editor
