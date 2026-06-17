@@ -2,6 +2,8 @@ import json
 import os
 from typing import Dict, Optional
 
+from config_dir import get_config_dir
+
 
 # Unit groups matching calibration groups
 UNIT_GROUPS = ["Z", "X", "Disp", "AUX0", "AUX1", "AUX2", "AUX3", "AUX4"]
@@ -27,8 +29,7 @@ class UnitStore:
 
     def __init__(self, filepath: Optional[str] = None):
         if filepath is None:
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            filepath = os.path.join(base_dir, "units.json")
+            filepath = os.path.join(get_config_dir(), "units.json")
         self.filepath = filepath
         self._units: Dict[str, str] = {}
         self.load()

@@ -3,6 +3,8 @@ import os
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
+from config_dir import get_config_dir
+
 
 @dataclass
 class CalibCoeffs:
@@ -38,8 +40,7 @@ class CalibrationStore:
 
     def __init__(self, filepath: Optional[str] = None):
         if filepath is None:
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            filepath = os.path.join(base_dir, "calibration.json")
+            filepath = os.path.join(get_config_dir(), "calibration.json")
         self.filepath = filepath
         self._cal: Dict[str, CalibCoeffs] = {}
         self.load()
