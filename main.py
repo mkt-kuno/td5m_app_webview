@@ -1,7 +1,6 @@
 import webview
 import socket
 import datetime
-import json
 import os
 import sys
 import threading
@@ -208,27 +207,6 @@ class TDS530Api:
         self._lock = threading.Lock()
         self._save_file = None
         self._header_written = False
-        self.window = None
-    
-    def set_window(self, window):
-        """Set the pywebview window reference for JS push updates."""
-        self.window = window
-
-    def _push_to_js(self, data: dict):
-        """Push the latest data to the frontend via evaluate_js."""
-        if self.window is None:
-            return
-        try:
-            payload = {
-                "time": data["time"].strftime("%Y/%m/%d %H:%M:%S"),
-                "raw": data["raw"],
-                "physical": data["physical"],
-            }
-            js = f"window.updateDataFromPython({json.dumps(payload)})"
-            self.window.evaluate_js(js)
-        except Exception:
-            # Window may not be ready or JS side may be unavailable; ignore.
-            pass
 
     def update_data(self, data: dict):
         """Called by the data collector when new data is received."""
@@ -248,9 +226,6 @@ class TDS530Api:
                     self._write_data_to_file(stored)
                 except Exception:
                     pass
-
-            # NOTE: push to JS is disabled; polling is used instead to avoid UI freezes.
-            # self._push_to_js(stored)
 
     @staticmethod
     def _format_raw_value(value):
@@ -429,9 +404,6 @@ if __name__ == "__main__":
         js_api=api,
         width=1900,
         height=1000)
-
-    # Provide the window reference so the API can push data to JS
-    api.set_window(window)
 
     # Start data collector when window is ready
     def on_loaded():

@@ -424,29 +424,6 @@
             updateChannels(rawData, physicalData);
         }
 
-        function handleLatestData(jsonData) {
-            if (jsonData.raw && jsonData.physical && jsonData.time) {
-                if (jsonData.time !== lastTime) {
-                    lastTime = jsonData.time;
-                    renderData(jsonData.raw, jsonData.physical, jsonData.time);
-                }
-                updateStatus(true);
-
-                if (isSaving) {
-                    saveStatusEl.textContent = `Saving: ${jsonData.raw.length}ch / Latest ${jsonData.time}`;
-                }
-            }
-        }
-
-        // Receives pushed data from Python (push model)
-        window.updateDataFromPython = function(jsonData) {
-            try {
-                handleLatestData(jsonData);
-            } catch (error) {
-                console.error('[updateDataFromPython] error:', error);
-            }
-        };
-
         async function fetchData() {
             if (isFetching) return;
             isFetching = true;
@@ -458,7 +435,19 @@
                     return;
                 }
 
-                handleLatestData(jsonData);
+                if (jsonData.raw && jsonData.physical && jsonData.time) {
+                    if (jsonData.time !== lastTime) {
+                        lastTime = jsonData.time;
+                        renderData(jsonData.raw, jsonData.physical, jsonData.time);
+                    }
+                    updateStatus(true);
+
+                    if (isSaving) {
+                        saveStatusEl.textContent = `Saving: ${jsonData.raw.length}ch / Latest ${jsonData.time}`;
+                    }
+                } else {
+                    updateStatus(false, 'Invalid data format');
+                }
             } catch (error) {
                 console.error('[fetchData] error:', error);
                 updateStatus(false, 'Error: ' + error.message);
