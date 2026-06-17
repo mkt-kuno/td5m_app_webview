@@ -236,7 +236,7 @@
             const header = document.createElement('div');
             header.className = 'flex items-center justify-between mb-2 shrink-0';
             header.innerHTML = `
-                <div class="text-lg font-bold text-gray-700">Block ${blockIndex} <span class="text-sm text-gray-500">(${axis} Axis)</span></div>
+                <div class="text-lg font-bold text-gray-700">Block ${blockIndex} <span class="text-sm text-gray-500">/ ${axis} Axis</span></div>
                 <div class="text-sm text-gray-400">${formatChannelLabel(startCh)}-${formatChannelLabel(endCh)}</div>
             `;
             block.appendChild(header);
@@ -247,7 +247,7 @@
 
             // Load cell area (4x2 grid)
             const loadcellArea = document.createElement('div');
-            loadcellArea.className = 'grid grid-cols-4 grid-rows-2 gap-1 bg-gray-50 rounded border border-gray-200 p-1';
+            loadcellArea.className = 'grid grid-cols-4 grid-rows-2 gap-1';
 
             // Top row: Z directions
             for (let col = 0; col < 4; col++) {
@@ -468,12 +468,12 @@
         }
 
         // Calibration editor
-        function createCalibGroup(key, values) {
+        function createCalibGroup(key, displayName, values) {
             const coeffs = values[key] || { a: 0, b: 1, c: 0 };
             const item = document.createElement('div');
             item.className = 'flex items-end gap-2';
             item.innerHTML = `
-                <div class="font-semibold text-gray-700 text-base pb-1 w-10 shrink-0">${key}</div>
+                <div class="font-semibold text-gray-700 text-base pb-1 w-24 shrink-0">${displayName}</div>
                 <div class="grid grid-cols-3 gap-1 flex-1">
                     <div>
                         <label class="block text-xs text-gray-500">a</label>
@@ -497,40 +497,63 @@
             const grid = document.createElement('div');
             grid.className = 'grid grid-cols-5 gap-x-4 gap-y-2';
 
-            // Row 1: title, Z, X, Disp, formula+save
+            const groupLabels = {
+                Z: 'Z', X: 'X', Disp: 'Displacement',
+                AUX0: 'AUX0', AUX1: 'AUX1', AUX2: 'AUX2', AUX3: 'AUX3', AUX4: 'AUX4'
+            };
+
+            // Row 1: title, Z, X, Displacement, formula+export
             const titleItem = document.createElement('div');
             titleItem.className = 'flex items-center';
             titleItem.innerHTML = '<div class="text-lg font-bold text-gray-800">Calibration</div>';
             grid.appendChild(titleItem);
 
             ['Z', 'X', 'Disp'].forEach(key => {
-                grid.appendChild(createCalibGroup(key, values));
+                grid.appendChild(createCalibGroup(key, groupLabels[key], values));
             });
 
             const formulaItem = document.createElement('div');
             formulaItem.className = 'flex flex-col items-end justify-center';
             formulaItem.innerHTML = `
-                <div class="text-sm text-gray-500 mb-1">Phy = a×μStrain² + b×μStrain + c</div>
-                <button id="saveCalibBtn" class="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700">Save</button>
+                <div class="text-sm text-gray-500 mb-1">Phy = a×με² + b×με + c</div>
+                <button id="saveCalibBtn" class="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700">Export</button>
             `;
             grid.appendChild(formulaItem);
 
             // Row 2: AUX0..AUX4
             ['AUX0', 'AUX1', 'AUX2', 'AUX3', 'AUX4'].forEach(key => {
-                grid.appendChild(createCalibGroup(key, values));
+                grid.appendChild(createCalibGroup(key, groupLabels[key], values));
             });
 
             calibSummary.appendChild(grid);
         }
 
-        function attachSaveCalibListener() {
+        function attachCalibListeners() {
             const btn = document.getElementById('saveCalibBtn');
             if (btn) {
-                btn.addEventListener('click', () => { saveCalibration(); });
+                btn.addEventListener('click', () => { saveCalibration({ silent: false }); });
             }
+            CALIB_GROUPS.forEach(key => {
+                ['a', 'b', 'c'].forEach(coef => {
+                    const input = document.getElementById(`calib-${key}-${coef}`);
+                    if (input) {
+                        input.addEventListener('input', () => { autoSaveCalibration(); });
+                    }
+                });
+            });
         }
 
-        async function saveCalibration() {
+        function debounce(fn, wait) {
+            let timer = null;
+            return function(...args) {
+                clearTimeout(timer);
+                timer = setTimeout(() => fn.apply(this, args), wait);
+            };
+        }
+
+        const autoSaveCalibration = debounce(() => saveCalibration({ silent: true }), 500);
+
+        async function saveCalibration({ silent = false } = {}) {
             const values = {};
             CALIB_GROUPS.forEach(key => {
                 values[key] = {
@@ -544,9 +567,11 @@
                 if (result.error) {
                     calibStatus.textContent = 'Save error: ' + result.error;
                 } else {
-                    calibStatus.textContent = 'Saved';
-                    renderCalibEditor(values);
-                    attachSaveCalibListener();
+                    calibStatus.textContent = silent ? 'Auto-saved' : 'Exported';
+                    if (!silent) {
+                        renderCalibEditor(values);
+                        attachCalibListeners();
+                    }
                 }
             } catch (e) {
                 console.error('[saveCalibration] error:', e);
@@ -558,7 +583,7 @@
             try {
                 const values = await pywebview.api.get_calibration();
                 renderCalibEditor(values);
-                attachSaveCalibListener();
+                attachCalibListeners();
             } catch (e) {
                 console.error('[loadCalibration] error:', e);
                 calibStatus.textContent = 'Load error';
@@ -576,7 +601,7 @@
 
             startSaveBtn.addEventListener('click', () => { startSaving(); });
             stopSaveBtn.addEventListener('click', () => { stopSaving(); });
-            attachSaveCalibListener();
+            attachCalibListeners();
 
             loadCalibration();
             fetchData();
