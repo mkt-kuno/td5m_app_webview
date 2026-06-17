@@ -24,7 +24,6 @@
                 Connecting...
             </span>
             <div class="flex items-center gap-3 ml-auto">
-                <button id="calibBtn" class="px-4 py-2 rounded-md bg-indigo-600 text-white text-base hover:bg-indigo-700">Calibration</button>
                 <button id="startSaveBtn" class="px-4 py-2 rounded-md bg-blue-600 text-white text-base hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">保存開始</button>
                 <button id="stopSaveBtn" class="px-4 py-2 rounded-md bg-gray-600 text-white text-base hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" disabled>保存終了</button>
                 <span id="saveStatus" class="text-base text-gray-600">未保存</span>
@@ -40,14 +39,16 @@
         <div id="lowerContainer" class="mt-3 bg-white rounded-lg shadow-md p-4 flex flex-col">
             <div class="flex items-center justify-between mb-3">
                 <div class="text-lg font-bold text-gray-800">Calibration</div>
-                <div class="text-sm text-gray-500">物理値 = a × Raw² + b × Raw + c</div>
+                <div class="flex items-center gap-3">
+                    <div class="text-sm text-gray-500">物理値 = a × Raw² + b × Raw + c</div>
+                    <button id="saveCalibBtn" class="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700">保存</button>
+                </div>
             </div>
             <div id="calibSummary" class="text-sm text-gray-700">
                 <!-- Calibration inputs will be inserted here -->
             </div>
-            <div class="mt-3 flex items-center justify-end gap-3">
+            <div class="mt-1 flex items-center justify-end">
                 <span id="calibStatus" class="text-sm text-gray-600"></span>
-                <button id="saveCalibBtn" class="px-4 py-2 rounded-md bg-indigo-600 text-white text-base hover:bg-indigo-700">保存</button>
             </div>
         </div>
     </div>
@@ -61,7 +62,6 @@
         const startSaveBtn = document.getElementById('startSaveBtn');
         const stopSaveBtn = document.getElementById('stopSaveBtn');
         const saveStatusEl = document.getElementById('saveStatus');
-        const calibBtn = document.getElementById('calibBtn');
         const saveCalibBtn = document.getElementById('saveCalibBtn');
         const calibStatus = document.getElementById('calibStatus');
 
@@ -519,7 +519,6 @@
 
             startSaveBtn.addEventListener('click', () => { startSaving(); });
             stopSaveBtn.addEventListener('click', () => { stopSaving(); });
-            calibBtn.addEventListener('click', () => { lowerContainer.scrollIntoView({ behavior: 'smooth' }); });
             saveCalibBtn.addEventListener('click', () => { saveCalibration(); });
 
             loadCalibration();
