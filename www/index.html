@@ -567,14 +567,14 @@
             const item = document.createElement('div');
             item.className = 'flex items-center gap-2';
             item.innerHTML = `
-                <div class="font-semibold text-gray-700 text-lg w-24 shrink-0">${displayName}</div>
-                <div class="flex items-center gap-1 flex-1">
+                <div class="font-semibold text-gray-700 text-lg w-16 shrink-0">${displayName}</div>
+                <div class="flex items-center gap-0.5 flex-1">
                     <label class="text-sm text-gray-500">a</label>
-                    <input type="number" step="any" id="calib-${key}-a" value="${coeffs.a}" class="w-full border border-gray-300 rounded px-2 py-0.5 text-lg">
+                    <input type="number" step="any" id="calib-${key}-a" value="${coeffs.a}" class="w-20 border border-gray-300 rounded px-2 py-0.5 text-lg">
                     <label class="text-sm text-gray-500">b</label>
-                    <input type="number" step="any" id="calib-${key}-b" value="${coeffs.b}" class="w-full border border-gray-300 rounded px-2 py-0.5 text-lg">
+                    <input type="number" step="any" id="calib-${key}-b" value="${coeffs.b}" class="w-20 border border-gray-300 rounded px-2 py-0.5 text-lg">
                     <label class="text-sm text-gray-500">c</label>
-                    <input type="number" step="any" id="calib-${key}-c" value="${coeffs.c}" class="w-full border border-gray-300 rounded px-2 py-0.5 text-lg">
+                    <input type="number" step="any" id="calib-${key}-c" value="${coeffs.c}" class="w-20 border border-gray-300 rounded px-2 py-0.5 text-lg">
                 </div>
             `;
             return item;
@@ -840,8 +840,7 @@
             loadCalibration();
             loadUnits();
             fetchData();
-            // Fallback/heartbeat poll: push is primary, but poll keeps status fresh
-            setInterval(fetchData, 1000);
+            setInterval(fetchData, 500);
         });
     </script>
 </body>

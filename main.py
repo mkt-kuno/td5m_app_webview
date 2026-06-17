@@ -249,9 +249,9 @@ class TDS530Api:
                 except Exception:
                     pass
 
-            # Push the data to the frontend immediately
-            self._push_to_js(stored)
-    
+            # NOTE: push to JS is disabled; polling is used instead to avoid UI freezes.
+            # self._push_to_js(stored)
+
     @staticmethod
     def _format_raw_value(value):
         """Format raw value like the reference TSV (integer when whole)."""
