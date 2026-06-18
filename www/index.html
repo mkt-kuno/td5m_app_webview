@@ -534,13 +534,17 @@
 
         function setCalibrationEditable(editable) {
             CALIB_GROUPS.forEach(key => {
-                ['a', 'b', 'c'].forEach(coef => {
+                ['a', 'b'].forEach(coef => {
                     const input = document.getElementById(`calib-${key}-${coef}`);
                     if (input) input.disabled = !editable;
                 });
             });
-            const exportBtn = document.getElementById('saveCalibBtn');
-            if (exportBtn) exportBtn.disabled = !editable;
+            const tareSel = document.getElementById('tareChanSelect');
+            if (tareSel) tareSel.disabled = !editable;
+            const tareCInput = document.getElementById('tareCInput');
+            if (tareCInput) tareCInput.disabled = !editable;
+            const tareBtn = document.getElementById('tareBtn');
+            if (tareBtn) tareBtn.disabled = !editable;
         }
 
         function setUnitsEditable(editable) {
@@ -550,74 +554,141 @@
             });
         }
 
+        function debounce(fn, wait) {
+            let timer = null;
+            return function(...args) {
+                clearTimeout(timer);
+                timer = setTimeout(() => fn.apply(this, args), wait);
+            };
+        }
+
         // Calibration editor
-        function createCalibGroup(key, displayName, values) {
-            const coeffs = values[key] || { a: 0, b: 1, c: 0 };
+        let _calibChannels = {}; // per-channel c values cache
+
+        function channelGroupName(ch) {
+            const block = Math.floor(ch / 10);
+            const pos = ch % 10;
+            if ([0,2,4,6].includes(pos)) return 'Z';
+            if ([1,3,5,7].includes(pos)) return 'X';
+            if (pos === 8) return 'Disp';
+            return `AUX${block}`;
+        }
+
+        function createCalibGroup(key, displayName, groups) {
+            const coeffs = groups[key] || { a: 0, b: 1 };
             const item = document.createElement('div');
             item.className = 'flex items-center gap-2';
             item.innerHTML = `
                 <div class="font-semibold text-gray-700 text-lg w-14 shrink-0">${displayName}</div>
                 <div class="flex items-center gap-0.5 flex-1">
                     <label class="text-sm text-gray-500">a</label>
-                    <input type="number" step="any" id="calib-${key}-a" value="${coeffs.a}" class="w-20 border border-gray-300 rounded px-1 py-0.5 text-lg">
+                    <input type="number" step="any" id="calib-${key}-a" value="${coeffs.a}" class="w-[120px] border border-gray-300 rounded px-1 py-0.5 text-lg">
                     <label class="text-sm text-gray-500">b</label>
-                    <input type="number" step="any" id="calib-${key}-b" value="${coeffs.b}" class="w-24 border border-gray-300 rounded px-1 py-0.5 text-lg">
-                    <label class="text-sm text-gray-500">c</label>
-                    <input type="number" step="any" id="calib-${key}-c" value="${coeffs.c}" class="w-20 border border-gray-300 rounded px-1 py-0.5 text-lg">
+                    <input type="number" step="any" id="calib-${key}-b" value="${coeffs.b}" class="w-[120px] border border-gray-300 rounded px-1 py-0.5 text-lg">
                 </div>
             `;
             return item;
         }
 
-        function renderCalibEditor(values) {
+        function renderCalibEditor(result) {
+            const groups = result.groups || result;
+            if (result.channels) _calibChannels = result.channels;
+
             calibSummary.innerHTML = '';
             const grid = document.createElement('div');
             grid.className = 'grid grid-cols-5 gap-x-2 gap-y-1';
 
-            const groupLabels = {
-                Z: 'Z', X: 'X', Disp: 'Disp',
-                AUX0: 'AUX0', AUX1: 'AUX1', AUX2: 'AUX2', AUX3: 'AUX3', AUX4: 'AUX4'
-            };
-
-            // Row 1: title, Z, X, Displacement, formula+export
+            // Row 1: title, Z, X, Disp, Tare section
             const titleItem = document.createElement('div');
             titleItem.className = 'flex items-center';
-            titleItem.innerHTML = '<div class="text-2xl font-bold text-gray-800">Calibration</div>';
+            titleItem.innerHTML = '<div class="text-2xl font-bold text-gray-800 leading-none">Calibration<span class="text-base font-normal text-gray-400 ml-1">（Phy=a×με²+b×με+c）</span></div>';
             grid.appendChild(titleItem);
 
             ['Z', 'X', 'Disp'].forEach(key => {
-                grid.appendChild(createCalibGroup(key, groupLabels[key], values));
+                grid.appendChild(createCalibGroup(key, key, groups));
             });
 
-            const formulaItem = document.createElement('div');
-            formulaItem.className = 'flex items-center justify-end gap-3';
-            formulaItem.innerHTML = `
-                <div class="text-base text-gray-500">Phy = a×με² + b×με + c</div>
-                <button id="saveCalibBtn" class="px-4 py-2 rounded-md bg-indigo-600 text-white text-base hover:bg-indigo-700">Export</button>
+            // Tare section (replaces formula+Export)
+            const channelOptions = Array.from({length: 50}, (_, i) => {
+                const ch = String(i).padStart(2, '0');
+                return `<option value="${ch}">${ch} ${channelGroupName(i)}</option>`;
+            }).join('');
+            const initC = (_calibChannels['00'] || {c: 0}).c;
+            const tareItem = document.createElement('div');
+            tareItem.className = 'flex items-center gap-2';
+            tareItem.innerHTML = `
+                <div class="font-semibold text-gray-700 text-lg w-14 shrink-0">Offset</div>
+                <div class="flex items-center gap-0.5 flex-1">
+                    <label class="text-sm text-gray-500">CH</label>
+                    <select id="tareChanSelect" class="border border-gray-300 rounded px-1 py-0.5 text-lg max-w-[88px]">${channelOptions}</select>
+                    <label class="text-sm text-gray-500">c</label>
+                    <input type="number" step="any" id="tareCInput" value="${initC}" class="w-[120px] border border-gray-300 rounded px-1 py-0.5 text-lg">
+                    <button id="tareBtn" class="px-2 py-0.5 rounded bg-amber-500 text-white text-lg hover:bg-amber-600 whitespace-nowrap disabled:opacity-50">Tare</button>
+                </div>
             `;
-            grid.appendChild(formulaItem);
+            grid.appendChild(tareItem);
 
             // Row 2: AUX0..AUX4
             ['AUX0', 'AUX1', 'AUX2', 'AUX3', 'AUX4'].forEach(key => {
-                grid.appendChild(createCalibGroup(key, groupLabels[key], values));
+                grid.appendChild(createCalibGroup(key, key, groups));
             });
 
             calibSummary.appendChild(grid);
         }
 
-        function attachCalibListeners() {
-            const btn = document.getElementById('saveCalibBtn');
-            if (btn) {
-                btn.addEventListener('click', () => { exportCalibration(); });
+        function _updateTareCFromCache() {
+            const sel = document.getElementById('tareChanSelect');
+            const input = document.getElementById('tareCInput');
+            if (!sel || !input) return;
+            const ch = sel.value;
+            input.value = (_calibChannels[ch] || {c: 0}).c;
+        }
+
+        const autoSaveTareC = debounce(async () => {
+            const sel = document.getElementById('tareChanSelect');
+            const input = document.getElementById('tareCInput');
+            if (!sel || !input) return;
+            const ch = sel.value;
+            const c = parseFloat(input.value) || 0;
+            try {
+                const result = await pywebview.api.set_channel_c(ch, c);
+                if (!result.error) _calibChannels[ch] = { c };
+            } catch (e) {
+                console.error('[autoSaveTareC] error:', e);
             }
+        }, 500);
+
+        async function applyTare() {
+            const sel = document.getElementById('tareChanSelect');
+            const input = document.getElementById('tareCInput');
+            if (!sel || !input) return;
+            const ch = sel.value;
+            try {
+                const result = await pywebview.api.tare_channel(ch);
+                if (result.error) {
+                    console.error('[applyTare]', result.error);
+                } else {
+                    input.value = result.c;
+                    _calibChannels[ch] = { c: result.c };
+                }
+            } catch (e) {
+                console.error('[applyTare] error:', e);
+            }
+        }
+
+        function attachCalibListeners() {
             CALIB_GROUPS.forEach(key => {
-                ['a', 'b', 'c'].forEach(coef => {
+                ['a', 'b'].forEach(coef => {
                     const input = document.getElementById(`calib-${key}-${coef}`);
-                    if (input) {
-                        input.addEventListener('input', () => { autoSaveCalibration(); });
-                    }
+                    if (input) input.addEventListener('input', () => { autoSaveCalibration(); });
                 });
             });
+            const tareSel = document.getElementById('tareChanSelect');
+            if (tareSel) tareSel.addEventListener('change', () => { _updateTareCFromCache(); });
+            const tareCInput = document.getElementById('tareCInput');
+            if (tareCInput) tareCInput.addEventListener('input', () => { autoSaveTareC(); });
+            const tareBtn = document.getElementById('tareBtn');
+            if (tareBtn) tareBtn.addEventListener('click', () => { applyTare(); });
         }
 
         // Units editor
@@ -734,49 +805,7 @@
             }
         }
 
-        function debounce(fn, wait) {
-            let timer = null;
-            return function(...args) {
-                clearTimeout(timer);
-                timer = setTimeout(() => fn.apply(this, args), wait);
-            };
-        }
-
-        const autoSaveCalibration = debounce(() => saveCalibration({ silent: true }), 500);
-
-        async function saveCalibration({ silent = false } = {}) {
-            const values = collectCalibrationValues();
-            try {
-                const result = await pywebview.api.set_calibration(values);
-                if (result.error) {
-                    calibStatus.textContent = 'Save error: ' + result.error;
-                } else {
-                    if (!silent) {
-                        calibStatus.textContent = 'Exported';
-                        renderCalibEditor(values);
-                        attachCalibListeners();
-                    }
-                }
-            } catch (e) {
-                console.error('[saveCalibration] error:', e);
-                calibStatus.textContent = 'Save error';
-            }
-        }
-
-        function formatCalibrationTimestamp(date) {
-            const pad = (value) => String(value).padStart(2, '0');
-            return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}_${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
-        }
-
-        function downloadJson(filename, data) {
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = filename;
-            link.click();
-            URL.revokeObjectURL(url);
-        }
+        const autoSaveCalibration = debounce(() => saveCalibration(), 500);
 
         function collectCalibrationValues() {
             const values = {};
@@ -784,29 +813,29 @@
                 values[key] = {
                     a: parseFloat(document.getElementById(`calib-${key}-a`).value) || 0,
                     b: parseFloat(document.getElementById(`calib-${key}-b`).value) || 0,
-                    c: parseFloat(document.getElementById(`calib-${key}-c`).value) || 0,
                 };
             });
             return values;
         }
 
-        async function exportCalibration() {
+        async function saveCalibration() {
+            const values = collectCalibrationValues();
             try {
-                const values = collectCalibrationValues();
-                await pywebview.api.set_calibration(values);
-                const filename = `${formatCalibrationTimestamp(new Date())}.cal.json`;
-                downloadJson(filename, values);
-                calibStatus.textContent = 'Exported';
+                const result = await pywebview.api.set_calibration(values);
+                if (result.error) {
+                    calibStatus.textContent = 'Save error: ' + result.error;
+                }
             } catch (e) {
-                console.error('[exportCalibration] error:', e);
-                calibStatus.textContent = 'Export error';
+                console.error('[saveCalibration] error:', e);
+                calibStatus.textContent = 'Save error';
             }
         }
 
         async function loadCalibration() {
             try {
-                const values = await pywebview.api.get_calibration();
-                renderCalibEditor(values);
+                const result = await pywebview.api.get_calibration();
+                _calibChannels = result.channels || {};
+                renderCalibEditor(result);
                 attachCalibListeners();
             } catch (e) {
                 console.error('[loadCalibration] error:', e);

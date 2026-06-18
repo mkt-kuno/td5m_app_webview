@@ -279,14 +279,51 @@ class TDS530Api:
             }
     
     def get_calibration(self):
-        """Get current calibration coefficients - called from JavaScript."""
-        return self.calibration.to_dict()
-    
+        """Get calibration for frontend: group a,b + per-channel c."""
+        return {
+            "groups": self.calibration.groups_dict(),
+            "channels": {k: {"c": v.c} for k, v in self.calibration._cal.items()},
+        }
+
     def set_calibration(self, values: dict):
-        """Update calibration coefficients - called from JavaScript."""
+        """Update group a,b coefficients from JavaScript."""
         try:
-            self.calibration.set_from_dict(values)
+            self.calibration.set_from_groups(values)
             return {"success": True}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_channel_c(self, ch: str):
+        """Get c offset for a specific channel."""
+        try:
+            c = self.calibration.get_channel_c(int(ch))
+            return {"c": c}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def set_channel_c(self, ch: str, c: float):
+        """Set c offset for a specific channel."""
+        try:
+            self.calibration.set_channel_c(int(ch), float(c))
+            return {"success": True}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def tare_channel(self, ch: str):
+        """Zero the current reading for a channel by adjusting c."""
+        try:
+            ch_index = int(ch)
+            with self._lock:
+                if not self.latest_data:
+                    return {"error": "No data available"}
+                raw_list = self.latest_data.get("raw", [])
+                if ch_index >= len(raw_list) or raw_list[ch_index] is None:
+                    return {"error": "Channel data not available"}
+                raw_val = raw_list[ch_index]
+            coeffs = self.calibration.get_channel_coeffs(ch_index)
+            new_c = -(coeffs.a * raw_val * raw_val + coeffs.b * raw_val)
+            self.calibration.set_channel_c(ch_index, new_c)
+            return {"success": True, "c": new_c}
         except Exception as e:
             return {"error": str(e)}
     
